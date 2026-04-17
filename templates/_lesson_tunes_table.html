@@ -1,0 +1,47 @@
+<div class="lesson-tunes-table-wrap">
+  <table class="tune-table lesson-tunes-table" id="lessonTunesTable"
+         data-lesson-link-api="{{ url_for('lesson_file_tune_link') }}">
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Size</th>
+        <th>Tunes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in files %}
+      <tr data-lesson-file="{{ f.name|e }}">
+        <td>
+          <a href="{{ url_for('lesson_tunes_download', filename=f.name) }}">{{ f.name }}</a>
+        </td>
+        <td>{{ f.size_label }}</td>
+        <td class="lesson-tunes-tunes-cell" role="group" aria-label="Tunes linked to this file">
+          <div class="lesson-tunes-pills">
+            {% for t in f.linked_tunes %}
+            <span class="lesson-tune-pill" data-tune-id="{{ t.id }}">
+              <span class="lesson-tune-pill-label">{{ t.name }}</span>
+              <button type="button" class="lesson-tune-pill-remove" aria-label="Remove {{ t.name|e }}">&times;</button>
+            </span>
+            {% endfor %}
+            {% if not f.linked_tunes %}
+            <span class="lesson-tunes-empty-hint">Click to add a tune</span>
+            {% endif %}
+          </div>
+          <div class="lesson-tunes-pick-wrap" hidden>
+            <div class="lesson-tunes-pick-inner">
+              <input type="text" class="lesson-tunes-pick-input" placeholder="Search tunes…"
+                     autocomplete="off" role="combobox" aria-autocomplete="list"
+                     aria-expanded="false" />
+              <ul class="lesson-tunes-pick-menu" role="listbox" hidden></ul>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3" class="lesson-tunes-empty">No files in <code>lesson_tunes</code> yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} tune – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <div class="form-header">
+    <a href="{{ url_for('index') }}" class="back-link">← Back to tunes</a>
+    <h2>{{ action }} tune</h2>
+  </div>
+
+  {% if tune and practice_count is defined %}
+  <div class="practice-stats-box">
+    <div class="stat-item">
+      <span class="stat-label">First practiced</span>
+      <span class="stat-value">{{ first_practiced|practice_date_display or '—' }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Last practiced</span>
+      <span class="stat-value">{{ last_practiced|practice_date_display or '—' }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Count</span>
+      <span class="stat-value">{{ practice_count }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Days since</span>
+      <span class="stat-value">{% if days_since_last is not none %}{{ days_since_last }}{% else %}—{% endif %}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% with modal=False, form_action='' %}
+  {% include "tune_form_inner.html" %}
+  {% endwith %}
+
+  {% if tune %}
+  <form method="post" action="{{ url_for('delete_tune', tune_id=tune.id) }}" class="delete-form" id="tunePageDeleteForm">
+    <input type="hidden" name="confirm_delete" value="1" />
+    <button type="submit" class="btn btn-danger">Delete tune</button>
+  </form>
+  {% endif %}
+</div>
+
+<script>
+  document.getElementById('tunePageDeleteForm')?.addEventListener('submit', function (e) {
+    e.preventDefault();
+    window.mpConfirmDeletion().then(ok => {
+      if (!ok) return;
+      this.submit();
+    });
+  });
+</script>
+{% endblock %}

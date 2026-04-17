@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+{% block title %}Statistics – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="stats-page">
+  <div class="page-header">
+    <h2>Statistics</h2>
+    <p class="stats-intro">
+      Visual summaries from your tune practice log. Month charts count every time you marked a tune as practiced
+      (including plays logged from sets).
+    </p>
+  </div>
+
+  {% set stats_show_refresh = (stats_payload.refresh_by_period|default({})).labels|default([])|length > 0 %}
+  {% if stats_payload.has_data or stats_show_refresh %}
+  <div class="stats-grid">
+    {% if stats_payload.has_data %}
+    <section class="stats-chart-card stats-chart-card--wide" aria-labelledby="statsPlaysMonthHeading">
+      <h3 id="statsPlaysMonthHeading">Plays per month</h3>
+      <p class="stats-chart-caption">Total practice log entries each calendar month.</p>
+      <div class="stats-chart-wrap">
+        <canvas id="chartPlaysByMonth" aria-label="Line chart of plays per month"></canvas>
+      </div>
+    </section>
+
+    <section class="stats-chart-card" aria-labelledby="statsUniqueMonthHeading">
+      <h3 id="statsUniqueMonthHeading">Different tunes per month</h3>
+      <p class="stats-chart-caption">How many distinct tunes you practiced at least once in each month.</p>
+      <div class="stats-chart-wrap">
+        <canvas id="chartUniqueByMonth" aria-label="Bar chart of unique tunes per month"></canvas>
+      </div>
+    </section>
+
+    <section class="stats-chart-card" aria-labelledby="statsTuneTypePieHeading">
+      <h3 id="statsTuneTypePieHeading">Practice records by tune type</h3>
+      <p class="stats-chart-caption">Share of all practice log entries in each tune type (including from sets).</p>
+      <div class="stats-chart-wrap">
+        <canvas id="chartPlaysByTuneType" aria-label="Pie chart of practice records by tune type"></canvas>
+      </div>
+    </section>
+
+    {% if stats_payload.plays_by_month_by_type.datasets %}
+    <section class="stats-chart-card stats-chart-card--wide" aria-labelledby="statsByTypeHeading">
+      <div class="stats-chart-card-header">
+        <div>
+          <h3 id="statsByTypeHeading">Plays by month &amp; tune type</h3>
+          <p class="stats-chart-caption">Monthly practice records broken down by tune type.</p>
+        </div>
+        <div class="stats-chart-toggles">
+          <div class="history-view-toggle" role="group" aria-label="Display mode" id="byTypeModeToggle">
+            <button class="history-view-toggle__btn history-view-toggle__btn--active" data-mode="counts" aria-pressed="true">Counts</button>
+            <button class="history-view-toggle__btn" data-mode="props" aria-pressed="false">Props</button>
+          </div>
+        </div>
+      </div>
+      <div class="stats-chart-wrap">
+        <canvas id="chartPlaysByType" aria-label="Stacked bar chart of plays by month and tune type"></canvas>
+      </div>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    {% if stats_show_refresh %}
+    <section class="stats-chart-card stats-chart-card--wide" aria-labelledby="statsRefreshPeriodHeading">
+      <div class="stats-chart-card-header">
+        <div>
+          <h3 id="statsRefreshPeriodHeading">By refresh period</h3>
+          <p class="stats-chart-caption">Each bar is one refresh record (period start on the axis). Metrics match the Refresh page (non-inclusive start).</p>
+        </div>
+        <div class="stats-chart-toggles">
+          <div class="history-view-toggle" role="group" aria-label="Refresh chart metric" id="refreshPeriodToggle">
+            <button type="button" class="history-view-toggle__btn history-view-toggle__btn--active" data-mode="days" aria-pressed="true">Days</button>
+            <button type="button" class="history-view-toggle__btn" data-mode="unique" aria-pressed="false">Unique tunes</button>
+            <button type="button" class="history-view-toggle__btn" data-mode="rate" aria-pressed="false">Tunes / day</button>
+          </div>
+        </div>
+      </div>
+      <div class="stats-chart-wrap">
+        <canvas id="chartRefreshPeriods" aria-label="Bar chart by refresh period"></canvas>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script id="mpStatsPayload" type="application/json">{{ stats_payload | tojson }}</script>
+  <script>
+    (function () {
+      const raw = document.getElementById('mpStatsPayload');
+      if (!raw || !window.Chart) return;
+      let payload;
+      try {
+        payload = JSON.parse(raw.textContent);
+      } catch (e) {
+        return;
+      }
+
+      function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      }
+
+      const accent = cssVar('--accent') || '#0b4f8c';
+      const accentLight = cssVar('--accent-light') || '#1a365d';
+      const textMuted = cssVar('--text-muted') || '#64748b';
+
+      const gridColor = textMuted.includes('rgb')
+        ? textMuted.replace(')', ', 0.12)').replace('rgb', 'rgba')
+        : 'rgba(100, 116, 139, 0.15)';
+
+      const commonTicks = {
+        color: textMuted,
+        font: { size: 11 },
+        maxRotation: 45,
+        minRotation: 0,
+      };
+
+      const commonPlugins = {
+        legend: { display: false },
+      };
+
+      const plays = payload.plays_by_month;
+      if (plays.labels.length) {
+        new Chart(document.getElementById('chartPlaysByMonth'), {
+          type: 'line',
+          data: {
+            labels: plays.labels,
+            datasets: [{
+              label: 'Plays',
+              data: plays.values,
+              borderColor: accent,
+              backgroundColor: accent + '33',
+              fill: true,
+              tension: 0.25,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: accent,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              ...commonPlugins,
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ' ' + ctx.parsed.y + ' play' + (ctx.parsed.y === 1 ? '' : 's'),
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { color: gridColor },
+                ticks: commonTicks,
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: gridColor },
+                ticks: { ...commonTicks, precision: 0 },
+              },
+            },
+          },
+        });
+      }
+
+      const uniq = payload.unique_tunes_by_month;
+      if (uniq.labels.length) {
+        new Chart(document.getElementById('chartUniqueByMonth'), {
+          type: 'bar',
+          data: {
+            labels: uniq.labels,
+            datasets: [{
+              label: 'Tunes',
+              data: uniq.values,
+              backgroundColor: accentLight + 'cc',
+              borderColor: accentLight,
+              borderWidth: 1,
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              ...commonPlugins,
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ' ' + ctx.parsed.y + ' tune' + (ctx.parsed.y === 1 ? '' : 's'),
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: commonTicks,
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: gridColor },
+                ticks: { ...commonTicks, precision: 0 },
+              },
+            },
+          },
+        });
+      }
+
+      const typePieColors = [
+        [78,121,167],[242,142,43],[225,87,89],[118,183,178],[89,161,79],
+        [237,201,72],[176,122,161],[255,157,167],[156,117,95],[186,176,172],
+        [107,174,214],[253,141,60],
+      ];
+
+      const byTuneType = payload.plays_by_tune_type;
+      if (byTuneType && byTuneType.labels && byTuneType.labels.length) {
+        const pieEl = document.getElementById('chartPlaysByTuneType');
+        if (pieEl) {
+          const pieData = (byTuneType.values || []).map((v) => Number(v) || 0);
+          if (pieData.some((v) => v > 0)) {
+            const existing = typeof Chart.getChart === 'function' ? Chart.getChart(pieEl) : null;
+            if (existing) existing.destroy();
+            const bg = byTuneType.labels.map((_, i) => {
+              const [r, g, b] = typePieColors[i % typePieColors.length];
+              return `rgba(${r},${g},${b},0.82)`;
+            });
+            const borders = byTuneType.labels.map((_, i) => {
+              const [r, g, b] = typePieColors[i % typePieColors.length];
+              return `rgba(${r},${g},${b},1)`;
+            });
+            new Chart(pieEl, {
+              type: 'pie',
+              data: {
+                labels: byTuneType.labels,
+                datasets: [{
+                  data: pieData,
+                  backgroundColor: bg,
+                  borderColor: borders,
+                  borderWidth: 1,
+                  hoverOffset: 6,
+                }],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: { color: textMuted, boxWidth: 12, padding: 10, font: { size: 11 } },
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => {
+                        const value = Number(ctx.raw) || 0;
+                        const sum = ctx.dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
+                        const pct = sum ? ((value / sum) * 100).toFixed(1) : '0';
+                        return ' ' + ctx.label + ': ' + value + ' (' + pct + '%)';
+                      },
+                    },
+                  },
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // ── Plays by month & tune type (stacked bar) ────────────────────
+      const byType = payload.plays_by_month_by_type;
+      if (byType.datasets && byType.datasets.length && byType.labels.length) {
+        const typeEl = document.getElementById('chartPlaysByType');
+        if (typeEl) {
+          const typeColors = [
+            [78,121,167],[242,142,43],[225,87,89],[118,183,178],[89,161,79],
+            [237,201,72],[176,122,161],[255,157,167],[156,117,95],[186,176,172],
+            [107,174,214],[253,141,60],
+          ];
+
+          const allTypeNames = new Set();
+          (byType.datasets || []).forEach(d => allTypeNames.add(d.label));
+          const typeColorMap = {};
+          [...allTypeNames].sort().forEach((name, i) => {
+            typeColorMap[name] = typeColors[i % typeColors.length];
+          });
+
+          function makeTypeDatasets(dsArr) {
+            return (dsArr || []).map(ds => {
+              const [r, g, b] = typeColorMap[ds.label] || typeColors[0];
+              return {
+                label: ds.label,
+                data: ds.values,
+                backgroundColor: `rgba(${r},${g},${b},0.82)`,
+                borderColor:     `rgba(${r},${g},${b},1)`,
+                borderWidth: 1,
+                borderRadius: 2,
+              };
+            });
+          }
+
+          let currentMode = 'counts';
+
+          function toPropDatasets(rawDatasets) {
+            const nM = byType.labels.length;
+            const totals = new Array(nM).fill(0);
+            rawDatasets.forEach(ds => ds.values.forEach((v, i) => { totals[i] += v; }));
+            return rawDatasets.map(ds => ({
+              label: ds.label,
+              values: ds.values.map((v, i) => totals[i] ? +(v / totals[i] * 100).toFixed(1) : 0),
+            }));
+          }
+
+          function getDisplayDatasets() {
+            const raw = byType.datasets;
+            return makeTypeDatasets(currentMode === 'props' ? toPropDatasets(raw) : raw);
+          }
+
+          function applyAxisMode(chart) {
+            const yAxis = chart.options.scales.y;
+            const tip   = chart.options.plugins.tooltip.callbacks;
+            if (currentMode === 'props') {
+              yAxis.max = 100;
+              yAxis.ticks = { ...commonTicks, precision: 1,
+                callback: (v) => v + '%' };
+              tip.label  = (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`;
+              tip.footer = (items) => {
+                const s = items.reduce((a, it) => a + it.parsed.y, 0);
+                return 'Total: ' + s.toFixed(1) + '%';
+              };
+            } else {
+              delete yAxis.max;
+              yAxis.ticks = { ...commonTicks, precision: 0 };
+              delete tip.label;
+              tip.footer = (items) => 'Total: ' + items.reduce((a, it) => a + it.parsed.y, 0);
+            }
+          }
+
+          const typeChart = new Chart(typeEl, {
+            type: 'bar',
+            data: { labels: byType.labels, datasets: getDisplayDatasets() },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'bottom',
+                  labels: { color: textMuted, boxWidth: 12, padding: 10, font: { size: 11 } },
+                },
+                tooltip: {
+                  callbacks: {
+                    footer: (items) => 'Total: ' + items.reduce((s, it) => s + it.parsed.y, 0),
+                  },
+                },
+              },
+              scales: {
+                x: { stacked: true, grid: { display: false }, ticks: commonTicks },
+                y: { stacked: true, beginAtZero: true, grid: { color: gridColor }, ticks: { ...commonTicks, precision: 0 } },
+              },
+            },
+          });
+
+          function setActive(groupId, attr, value) {
+            document.querySelectorAll(`#${groupId} [${attr}]`).forEach(b => {
+              const on = b.getAttribute(attr) === value;
+              b.classList.toggle('history-view-toggle__btn--active', on);
+              b.setAttribute('aria-pressed', String(on));
+            });
+          }
+
+          document.querySelectorAll('#byTypeModeToggle [data-mode]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              currentMode = btn.dataset.mode;
+              setActive('byTypeModeToggle', 'data-mode', currentMode);
+              typeChart.data.datasets = getDisplayDatasets();
+              applyAxisMode(typeChart);
+              typeChart.update();
+            });
+          });
+        }
+      }
+
+      const refr = payload.refresh_by_period;
+      if (refr && refr.labels && refr.labels.length) {
+        const el = document.getElementById('chartRefreshPeriods');
+        if (el) {
+          let refreshMode = 'days';
+          const modes = {
+            days: { data: refr.days, label: 'Days', decimals: 0, tip: (v) => ` ${v} day${v === 1 ? '' : 's'}` },
+            unique: { data: refr.unique_tunes, label: 'Unique tunes', decimals: 0, tip: (v) => ` ${v} tune${v === 1 ? '' : 's'}` },
+            rate: { data: refr.tunes_per_day, label: 'Unique tunes per day', decimals: 2, tip: (v) => ` ${Number(v).toFixed(2)} tunes/day` },
+          };
+
+          function refreshYTicks(decimals) {
+            const t = { ...commonTicks, precision: decimals };
+            if (decimals > 0) {
+              t.callback = (v) => Number(v).toFixed(decimals);
+            }
+            return t;
+          }
+
+          const refreshChartLabels = (refr.labels || []).map((s) =>
+            typeof s === 'string' ? s.split(/\n/) : s
+          );
+
+          const refreshChart = new Chart(el, {
+            type: 'bar',
+            data: {
+              labels: refreshChartLabels,
+              datasets: [{
+                label: modes.days.label,
+                data: (modes.days.data || []).map((v) => Number(v) || 0),
+                backgroundColor: accent + 'b3',
+                borderColor: accent,
+                borderWidth: 1,
+                borderRadius: 4,
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => modes[refreshMode].tip(ctx.parsed.y),
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  grid: { display: false },
+                  ticks: { ...commonTicks, maxRotation: 0, autoSkip: false },
+                },
+                y: {
+                  beginAtZero: true,
+                  grid: { color: gridColor },
+                  ticks: refreshYTicks(0),
+                },
+              },
+            },
+          });
+
+          function setRefreshToggleActive(value) {
+            document.querySelectorAll('#refreshPeriodToggle [data-mode]').forEach((b) => {
+              const on = b.getAttribute('data-mode') === value;
+              b.classList.toggle('history-view-toggle__btn--active', on);
+              b.setAttribute('aria-pressed', String(on));
+            });
+          }
+
+          function applyRefreshMode(m) {
+            refreshMode = m;
+            const cfg = modes[m];
+            refreshChart.data.datasets[0].data = (cfg.data || []).map((v) => Number(v) || 0);
+            refreshChart.data.datasets[0].label = cfg.label;
+            refreshChart.options.scales.y.ticks = refreshYTicks(cfg.decimals);
+            refreshChart.update();
+          }
+
+          document.querySelectorAll('#refreshPeriodToggle [data-mode]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              applyRefreshMode(btn.dataset.mode);
+              setRefreshToggleActive(btn.dataset.mode);
+            });
+          });
+        }
+      }
+    })();
+  </script>
+
+  <script>
+    var mpServerStatsLayout = {{ mp_settings.stats_layout | tojson }};
+  </script>
+  <script>
+  /* ── Statistics page drag-and-drop layout ───────────────────────────── */
+  (function () {
+    'use strict';
+
+    const grid = document.querySelector('.stats-grid');
+    if (!grid) return;
+
+    /* ── Grip-dot icon ────────────────────────────────────────────────── */
+    const GRIP_SVG = [
+      '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">',
+      '<circle cx="4.5" cy="2.5" r="1.35"/><circle cx="4.5" cy="7" r="1.35"/><circle cx="4.5" cy="11.5" r="1.35"/>',
+      '<circle cx="9.5" cy="2.5" r="1.35"/><circle cx="9.5" cy="7" r="1.35"/><circle cx="9.5" cy="11.5" r="1.35"/>',
+      '</svg>',
+    ].join('');
+
+    /* ── Floating indicator element ───────────────────────────────────── */
+    const indicator = document.createElement('div');
+    indicator.className = 'stats-drop-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(indicator);
+
+    /* ── Add drag handles & draggable attr to every card ─────────────── */
+    function attachHandles() {
+      grid.querySelectorAll('.stats-chart-card').forEach(function (card) {
+        if (card.querySelector('.stats-drag-handle')) return;
+        card.setAttribute('draggable', 'true');
+        var h = document.createElement('div');
+        h.className = 'stats-drag-handle';
+        h.innerHTML = GRIP_SVG;
+        card.appendChild(h);
+      });
+    }
+    attachHandles();
+
+    /* ── Drag state ───────────────────────────────────────────────────── */
+    var dragging      = null;   // the card element being dragged
+    var fromHandle    = false;  // did drag start from the grip handle?
+    var lastDrop      = null;   // { target, pos } computed in dragover
+
+    /* Only allow drags that originate from the handle. */
+    grid.addEventListener('mousedown', function (e) {
+      fromHandle = !!e.target.closest('.stats-drag-handle');
+    });
+
+    grid.addEventListener('dragstart', function (e) {
+      var card = e.target.closest('.stats-chart-card');
+      if (!card || !fromHandle) { e.preventDefault(); return; }
+      dragging = card;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ''); // required by Firefox
+      requestAnimationFrame(function () {
+        card.classList.add('sdnd-dragging');
+        grid.classList.add('sdnd-active');
+      });
+    });
+
+    /* ── dragover: compute drop position & show indicator ────────────── */
+    grid.addEventListener('dragover', function (e) {
+      if (!dragging) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      var card = e.target.closest('.stats-chart-card');
+      if (!card || card === dragging) { hideIndicator(); return; }
+
+      var r  = card.getBoundingClientRect();
+      var gr = grid.getBoundingClientRect();
+      var relY = (e.clientY - r.top)  / r.height;
+      var relX = (e.clientX - r.left) / r.width;
+      var isWide = card.classList.contains('stats-chart-card--wide');
+
+      /*
+       * Zone logic:
+       *   top 22 %    → before-wide  (horizontal indicator above card)
+       *   bottom 22 % → after-wide   (horizontal indicator below card)
+       *   left edge   → before-narrow (vertical indicator on left edge)
+       *   right edge  → after-narrow  (vertical indicator on right edge)
+       *   center      → before-wide  (default: full-width drop)
+       *
+       * The narrow edges are narrower on wide cards (15 %) to avoid
+       * accidental narrow drops when the user is just scanning across.
+       */
+      var narrowZone = isWide ? 0.15 : 0.28;
+      var pos;
+
+      if (relY < 0.22) {
+        pos = 'before-wide';
+      } else if (relY > 0.78) {
+        pos = 'after-wide';
+      } else if (relX < narrowZone) {
+        pos = 'before-narrow';
+      } else if (relX > 1 - narrowZone) {
+        pos = 'after-narrow';
+      } else {
+        pos = 'before-wide';
+      }
+
+      lastDrop = { target: card, pos: pos };
+      showIndicator(r, gr, pos);
+    });
+
+    /* Hide when pointer leaves the grid entirely. */
+    grid.addEventListener('dragleave', function (e) {
+      if (!grid.contains(e.relatedTarget)) hideIndicator();
+    });
+
+    /* ── drop: commit the new position ───────────────────────────────── */
+    grid.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (!dragging || !lastDrop) return;
+      commit(dragging, lastDrop.target, lastDrop.pos);
+      saveLayout();
+      cleanup();
+    });
+
+    grid.addEventListener('dragend', cleanup);
+
+    /* ── showIndicator ────────────────────────────────────────────────── */
+    function showIndicator(r, gr, pos) {
+      var s = indicator.style;
+      s.display = 'block';
+
+      if (pos === 'before-wide') {
+        /* Horizontal line spanning full grid width, above the target card */
+        s.top    = (r.top - 3) + 'px';
+        s.left   = gr.left + 'px';
+        s.width  = gr.width + 'px';
+        s.height = '4px';
+      } else if (pos === 'after-wide') {
+        /* Horizontal line below the target card */
+        s.top    = (r.bottom - 1) + 'px';
+        s.left   = gr.left + 'px';
+        s.width  = gr.width + 'px';
+        s.height = '4px';
+      } else if (pos === 'before-narrow') {
+        /* Vertical line on the left edge of the target card */
+        s.top    = (r.top - 4) + 'px';
+        s.left   = (r.left - 3) + 'px';
+        s.width  = '4px';
+        s.height = (r.height + 8) + 'px';
+      } else if (pos === 'after-narrow') {
+        /* Vertical line on the right edge of the target card */
+        s.top    = (r.top - 4) + 'px';
+        s.left   = (r.right - 1) + 'px';
+        s.width  = '4px';
+        s.height = (r.height + 8) + 'px';
+      }
+    }
+
+    function hideIndicator() {
+      indicator.style.display = 'none';
+      lastDrop = null;
+    }
+
+    /* ── commit: rearrange DOM and toggle wide class ─────────────────── */
+    function commit(dragged, target, pos) {
+      if (pos === 'before-wide') {
+        dragged.classList.add('stats-chart-card--wide');
+        grid.insertBefore(dragged, target);
+      } else if (pos === 'after-wide') {
+        dragged.classList.add('stats-chart-card--wide');
+        grid.insertBefore(dragged, target.nextElementSibling);
+      } else if (pos === 'before-narrow') {
+        dragged.classList.remove('stats-chart-card--wide');
+        grid.insertBefore(dragged, target);
+      } else if (pos === 'after-narrow') {
+        dragged.classList.remove('stats-chart-card--wide');
+        grid.insertBefore(dragged, target.nextElementSibling);
+      }
+
+      /* Ask Chart.js to re-measure canvases after layout shift */
+      requestAnimationFrame(function () {
+        grid.querySelectorAll('canvas').forEach(function (cv) {
+          var ch = window.Chart && Chart.getChart ? Chart.getChart(cv) : null;
+          if (ch) ch.resize();
+        });
+      });
+    }
+
+    /* ── cleanup ──────────────────────────────────────────────────────── */
+    function cleanup() {
+      if (dragging) dragging.classList.remove('sdnd-dragging');
+      dragging   = null;
+      fromHandle = false;
+      grid.classList.remove('sdnd-active');
+      hideIndicator();
+    }
+
+    /* ── Persist layout in localStorage + server settings.json ──────── */
+    var STORE_KEY = 'mp-stats-layout-v1';
+
+    function saveLayout() {
+      try {
+        var data = Array.from(grid.querySelectorAll('.stats-chart-card')).map(function (c) {
+          var cv = c.querySelector('canvas');
+          return { id: cv ? cv.id : '', wide: c.classList.contains('stats-chart-card--wide') };
+        });
+        localStorage.setItem(STORE_KEY, JSON.stringify(data));
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stats_layout: data }),
+        }).catch(function () {});
+      } catch (_) {}
+    }
+
+    function loadLayout() {
+      try {
+        // Prefer server layout (cross-device via settings.json / Dropbox);
+        // fall back to localStorage for backward compatibility.
+        var saved = (Array.isArray(window.mpServerStatsLayout) && window.mpServerStatsLayout.length)
+          ? window.mpServerStatsLayout
+          : JSON.parse(localStorage.getItem(STORE_KEY));
+        if (!Array.isArray(saved) || !saved.length) return;
+
+        /* Build a map: canvas id → card element */
+        var map = new Map();
+        grid.querySelectorAll('.stats-chart-card').forEach(function (c) {
+          var cv = c.querySelector('canvas');
+          if (cv && cv.id) map.set(cv.id, c);
+        });
+
+        /* Apply saved wide flags and collect ordered cards */
+        var ordered = [];
+        saved.forEach(function (entry) {
+          var c = map.get(entry.id);
+          if (!c) return;
+          c.classList.toggle('stats-chart-card--wide', !!entry.wide);
+          ordered.push(c);
+          map.delete(entry.id);
+        });
+
+        /* Append any cards that weren't in the saved list */
+        map.forEach(function (c) { ordered.push(c); });
+
+        /* Reorder in DOM */
+        ordered.forEach(function (c) { grid.appendChild(c); });
+
+        /* Resize charts after layout applied */
+        requestAnimationFrame(function () {
+          grid.querySelectorAll('canvas').forEach(function (cv) {
+            var ch = window.Chart && Chart.getChart ? Chart.getChart(cv) : null;
+            if (ch) ch.resize();
+          });
+        });
+      } catch (_) {}
+    }
+
+    loadLayout();
+  })();
+  </script>
+  {% elif not stats_payload.has_data and not stats_show_refresh %}
+  <div class="empty-state">
+    <p>No practice data to chart yet. Mark tunes as practiced from the tune list or play counts view.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

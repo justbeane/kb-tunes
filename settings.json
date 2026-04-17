@@ -1,0 +1,32 @@
+{
+  "theme": "pearl",
+  "card_dividers": false,
+  "mark_played_today": true,
+  "bold_card_titles": false,
+  "type_bubbles": true,
+  "stats_layout": [
+    {
+      "id": "chartPlaysByMonth",
+      "wide": true
+    },
+    {
+      "id": "chartRefreshPeriods",
+      "wide": false
+    },
+    {
+      "id": "chartPlaysByTuneType",
+      "wide": false
+    },
+    {
+      "id": "chartPlaysByType",
+      "wide": true
+    },
+    {
+      "id": "chartUniqueByMonth",
+      "wide": true
+    }
+  ],
+  "phrase_subset_override_enabled": true,
+  "phrase_variety": "low",
+  "phrase_frequency_sec": 60
+}

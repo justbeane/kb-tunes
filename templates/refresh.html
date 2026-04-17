@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Refresh – Fiddle Practice{% endblock %}
+
+{# YYYY-MM-DD HH:MM for text inputs (matches API normalizers). #}
+{% macro refresh_datetime_edit_value(raw) -%}
+{%- if not raw -%}{%- else -%}
+{%- set s = raw|string|trim -%}
+{%- if 'T' in s -%}
+{%- set s = s.replace('T', ' ', 1) -%}
+{%- endif -%}
+{%- if s|length >= 16 and s[10] == ' ' -%}
+{{ s[:16] }}
+{%- elif s|length >= 10 -%}
+{{ s[:10] }}
+{%- else -%}
+{{ s }}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro refresh_datetime_button_label(raw) -%}
+{%- if not raw -%}—{%- else -%}{{ refresh_datetime_edit_value(raw) }}{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="refresh-page" id="refreshPage"
+     data-create-url="{{ url_for('api_refresh_create') }}"
+     data-api-refresh-detail="{{ url_for('api_refresh_detail', refresh_id=0) }}"
+     data-edit-tune="{{ url_for('edit_tune', tune_id=0) }}">
+  <div class="page-header">
+    <h2>Refresh</h2>
+  </div>
+
+  <div class="refresh-toolbar">
+    <button type="button" class="btn btn-primary btn-sm" id="refreshLogAddBtn">Refresh</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-wrap__inner">
+      <table class="tune-table table-layout-modern" id="refreshLogTable" aria-label="Refresh records">
+        <thead>
+          <tr>
+            <th class="refresh-col-num" scope="col">No.</th>
+            <th scope="col">Start</th>
+            <th scope="col">End</th>
+            <th class="refresh-col-calc" scope="col">Day</th>
+            <th class="refresh-col-calc refresh-col-calc--wide" scope="col">Practice records</th>
+            <th class="refresh-col-calc refresh-col-calc--wide" scope="col">Unique tune count</th>
+            <th class="col-actions" scope="col"><span class="table-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="refreshLogBody">
+          {% for r in refreshes %}
+          <tr class="refresh-log-data-row" data-refresh-id="{{ r['id'] }}">
+            <td class="refresh-col-num">{{ r['refresh_number'] }}</td>
+            <td class="refresh-col-datetime">
+              <button type="button" class="refresh-datetime-display"
+                      aria-label="Edit start date and time for refresh {{ r['refresh_number'] }}">
+                {{ refresh_datetime_button_label(r['start_at']) }}
+              </button>
+              <input type="text" class="refresh-datetime-input refresh-start-at" name="start_at"
+                     value="{{ refresh_datetime_edit_value(r['start_at']) }}"
+                     data-initial="{{ refresh_datetime_edit_value(r['start_at']) }}"
+                     data-patch-url="{{ url_for('api_refresh_update', refresh_id=r['id']) }}"
+                     placeholder="YYYY-MM-DD HH:MM"
+                     autocomplete="off" spellcheck="false"
+                     hidden
+                     aria-label="Start date and time for refresh {{ r['refresh_number'] }}" />
+            </td>
+            <td class="refresh-col-datetime refresh-col-datetime--end">
+              <button type="button" class="refresh-datetime-display{% if not r['end_at'] %} refresh-datetime-display--empty{% endif %}"
+                      aria-label="Edit end date and time for refresh {{ r['refresh_number'] }}">
+                {{ refresh_datetime_button_label(r['end_at']) }}
+              </button>
+              <input type="text" class="refresh-datetime-input refresh-end-at{% if not r['end_at'] %} refresh-end-at--open{% endif %}" name="end_at"
+                     value="{{ refresh_datetime_edit_value(r['end_at']) }}"
+                     data-initial="{{ refresh_datetime_edit_value(r['end_at']) }}"
+                     data-patch-url="{{ url_for('api_refresh_update', refresh_id=r['id']) }}"
+                     placeholder="YYYY-MM-DD HH:MM (optional)"
+                     autocomplete="off" spellcheck="false"
+                     hidden
+                     aria-label="End date and time for refresh {{ r['refresh_number'] }}" />
+            </td>
+            <td class="refresh-col-calc" title="Days from start to end (rounded up; ongoing periods use now)">{{ r['days_span'] }}</td>
+            <td class="refresh-col-calc" title="Practice log rows in this period">{{ r['practice_records'] }}</td>
+            <td class="refresh-col-calc" title="Distinct tunes with practice in this period">{{ r['unique_tune_count'] }}</td>
+            <td class="col-actions">
+              <button type="button" class="btn-row-delete refresh-log-delete" title="Delete" aria-label="Delete refresh record"
+                      data-delete-url="{{ url_for('api_refresh_delete', refresh_id=r['id']) }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr class="refresh-log-empty-row" id="refreshLogEmptyRow">
+            <td colspan="7" class="refresh-log-empty">No refresh records yet. Use <strong>Refresh</strong> above.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="refresh-table-note" role="note">
+    Start times are non-inclusive. If a tune is played at the same time as a start time,
+    its play time will be incremented by 1 minute.
+  </p>
+</div>
+
+<div id="refreshDetailBackdrop" class="tune-modal-backdrop refresh-detail-backdrop" hidden aria-hidden="true">
+  <div class="tune-modal-dialog refresh-detail-dialog" role="dialog" aria-modal="true"
+       aria-labelledby="refreshDetailTitle" tabindex="-1">
+    <button type="button" class="tune-modal-close" id="refreshDetailCloseBtn" aria-label="Close">&times;</button>
+    <div class="refresh-detail-body">
+      <h2 id="refreshDetailTitle" class="refresh-detail-title">Refresh</h2>
+      <p class="refresh-detail-error" id="refreshDetailError" hidden></p>
+      <div id="refreshDetailContent" class="refresh-detail-content" hidden>
+        <dl class="refresh-detail-dl">
+          <div><dt>Start</dt><dd id="refreshDetailStart"></dd></div>
+          <div><dt>End</dt><dd id="refreshDetailEnd"></dd></div>
+          <div><dt>Days (span)</dt><dd id="refreshDetailDays"></dd></div>
+          <div><dt>Practice records</dt><dd id="refreshDetailRecords"></dd></div>
+          <div><dt>Unique tunes</dt><dd id="refreshDetailUnique"></dd></div>
+        </dl>
+        <h3 class="refresh-detail-tunes-heading">Tunes played <span class="refresh-detail-tunes-count" id="refreshDetailTunesCount"></span></h3>
+        <ul class="refresh-detail-tunes" id="refreshDetailTunes"></ul>
+      </div>
+      <p class="tune-modal-loading" id="refreshDetailLoading">Loading…</p>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='mp_refresh_page.js') }}" defer></script>
+{% endblock %}

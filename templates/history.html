@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% from "_sort_icons.html" import sortable_heading %}
+
+{% macro practice_datetime_display(dp) -%}
+{%- if not dp -%}
+{%- else -%}
+{%- set s = dp|string|trim -%}
+{%- if 'T' in s -%}
+{%- set s = s.replace('T', ' ', 1) -%}
+{%- endif -%}
+{%- if s|length >= 16 and s[10] == ' ' -%}
+{{ s[:16] }}
+{%- elif s|length >= 10 -%}
+{{ s[:10] }}
+{%- else -%}
+{{ s }}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro history_pagination_block(slot) %}
+{% set q = history_q_sets if history_kind == 'sets' else history_q_tunes %}
+<nav class="history-pagination history-pagination--{{ slot }}" aria-label="History pagination, {{ slot }} of table">
+  <div class="history-pagination__row">
+    <p class="history-pagination__summary">Showing {{ (history_page - 1) * history_page_size + 1 }}–{{ (history_page - 1) * history_page_size + (records|length) }} of {{ history_total }}</p>
+    <div class="history-pagination__controls">
+        {% if history_page > 1 %}
+        <a href="{{ url_for('history_view', page=1, **q) }}" class="history-pagination__link">&lt;&lt; First</a>
+        {% else %}
+        <span class="history-pagination__disabled">&lt;&lt; First</span>
+        {% endif %}
+        {% if history_page > 1 %}
+        <a href="{{ url_for('history_view', page=history_page - 1, **q) }}" class="history-pagination__link">&lt; Prev</a>
+        {% else %}
+        <span class="history-pagination__disabled">&lt; Prev</span>
+        {% endif %}
+        {% for n in history_page_nums %}
+          {% if n == history_page %}
+          <span class="history-pagination__current" aria-current="page">[{{ n }}]</span>
+          {% else %}
+          <a href="{{ url_for('history_view', page=n, **q) }}" class="history-pagination__link">{{ n }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if history_page < history_total_pages %}
+        <a href="{{ url_for('history_view', page=history_page + 1, **q) }}" class="history-pagination__link">Next &gt;</a>
+        {% else %}
+        <span class="history-pagination__disabled">Next &gt;</span>
+        {% endif %}
+        {% if history_page < history_total_pages %}
+        <a href="{{ url_for('history_view', page=history_total_pages, **q) }}" class="history-pagination__link">Last &gt;&gt;</a>
+        {% else %}
+        <span class="history-pagination__disabled">Last &gt;&gt;</span>
+        {% endif %}
+    </div>
+  </div>
+</nav>
+{% endmacro %}
+
+{% block title %}Practice History – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="history-page page-header page-header--table page-header--history"
+ data-history-kind="{{ history_kind }}">
+  <div class="table-toolbar-left">
+    <h2 class="history-page-title">Practice History</h2>
+    <div class="history-view-toggle" role="group" aria-label="History source">
+      <a href="{{ url_for('history_view', **history_q_tunes) }}"
+         class="history-view-toggle__btn{% if history_kind == 'tunes' %} history-view-toggle__btn--active{% endif %}"
+         {% if history_kind == 'tunes' %}aria-current="page"{% endif %}>Tunes</a>
+      <a href="{{ url_for('history_view', **history_q_sets) }}"
+         class="history-view-toggle__btn{% if history_kind == 'sets' %} history-view-toggle__btn--active{% endif %}"
+         {% if history_kind == 'sets' %}aria-current="page"{% endif %}>Sets</a>
+    </div>
+    <span class="tune-count" id="historyTotalCount" aria-label="Total records">{{ history_total }}</span>
+  </div>
+  <div class="table-controls table-controls--right table-controls--history">
+    <form method="get" action="{{ url_for('history_view') }}" class="history-type-filter-form">
+      {% if history_kind == 'sets' %}
+      <input type="hidden" name="view" value="sets" />
+      {% endif %}
+      <label class="table-sr-only" for="historyTypeSelect">Type</label>
+      <select name="type" id="historyTypeSelect" class="filter-select" aria-label="Filter by type"
+              onchange="this.form.submit()">
+        <option value="">All types</option>
+        {% for t in history_types_for_filter %}
+        <option value="{{ t }}" {% if history_type_filter == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <input type="search" id="tableFilter" class="search-input"
+           placeholder="Search..."
+           autocomplete="off" />
+    <button class="btn btn-ghost btn-secondary" id="clearFilter" style="display:none">Clear</button>
+  </div>
+</div>
+
+{% if records %}
+{{ history_pagination_block('top') }}
+<div class="table-wrap">
+  <div class="table-wrap__inner">
+  {% if history_kind == 'sets' %}
+  <table class="tune-table history-table-sets" id="historyTable">
+    <thead>
+      <tr class="history-thead-mobile-title">
+        <th colspan="5" scope="colgroup">Practice Records</th>
+      </tr>
+      <tr>
+        <th class="sortable col-history-date" data-col="0">{{ sortable_heading('Date and time') }}</th>
+        <th class="sortable col-history-left" data-col="1">{{ sortable_heading('Set') }}</th>
+        <th class="sortable col-history-left" data-col="2">{{ sortable_heading('Tunes') }}</th>
+        <th class="sortable col-history-left" data-col="3">{{ sortable_heading('Type') }}</th>
+        <th class="col-actions"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      {% set set_label = ((r.description or '')|trim) or (r.type or 'Set') %}
+      <tr data-id="{{ r.id }}">
+        <td class="col-history-date">
+          <input class="cell-date hist-date" type="text"
+                 value="{{ practice_datetime_display(r.date_practiced) }}"
+                 placeholder="YYYY-MM-DD HH:MM"
+                 autocomplete="off" spellcheck="false"
+                 data-initial="{{ practice_datetime_display(r.date_practiced) }}"
+                 aria-label="Date and time practiced" />
+        </td>
+        <td class="col-history-left">
+          <a href="{{ url_for('set_panel', set_id=r.set_id) }}" class="tune-link">{{ set_label }}</a>
+        </td>
+        <td class="text-muted-cell col-history-left">{{ r.tunes_names or '—' }}</td>
+        <td class="text-muted-cell col-history-left">{{ r.type or '—' }}</td>
+        <td class="col-actions">
+          <form method="post" action="{{ url_for('delete_set_practice', record_id=r.id) }}"
+                class="hist-delete-form">
+            <input type="hidden" name="history_page" value="{{ history_page }}" />
+            <input type="hidden" name="history_type" value="{{ history_type_filter }}" />
+            <input type="hidden" name="confirm_delete" value="1" />
+            <button type="submit" class="btn-row-delete" title="Delete">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+              </svg>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <table class="tune-table history-table-tunes" id="historyTable">
+    <thead>
+      <tr class="history-thead-mobile-title">
+        <th colspan="6" scope="colgroup">Practice Records</th>
+      </tr>
+      <tr>
+        <th class="sortable col-history-date" data-col="0">{{ sortable_heading('Date and time') }}</th>
+        <th class="sortable col-history-left" data-col="1">{{ sortable_heading('Tune') }}</th>
+        <th class="sortable col-history-left" data-col="2">{{ sortable_heading('Type') }}</th>
+        <th class="sortable col-history-left" data-col="3">{{ sortable_heading('Key') }}</th>
+        <th class="sortable col-history-plays" data-col="4">{{ sortable_heading('Plays') }}</th>
+        <th class="col-actions"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      <tr data-id="{{ r.id }}">
+        <td class="col-history-date">
+          <input class="cell-date hist-date" type="text"
+                 value="{{ practice_datetime_display(r.date_played) }}"
+                 placeholder="YYYY-MM-DD HH:MM"
+                 autocomplete="off" spellcheck="false"
+                 data-initial="{{ practice_datetime_display(r.date_played) }}"
+                 aria-label="Date and time practiced" />
+        </td>
+        <td class="col-history-left">
+          <a href="{{ url_for('edit_tune', tune_id=r.tune_id) }}" class="tune-link">{{ r.name }}</a>
+        </td>
+        <td class="text-muted-cell col-history-left">{{ r.tune_type or '—' }}</td>
+        <td class="text-muted-cell col-history-left">{{ r.key or '—' }}</td>
+        <td class="text-muted-cell col-history-plays">{{ r.practice_count }}</td>
+        <td class="col-actions">
+          <form method="post" action="{{ url_for('delete_practice', record_id=r.id) }}"
+                class="hist-delete-form">
+            <input type="hidden" name="history_page" value="{{ history_page }}" />
+            <input type="hidden" name="history_type" value="{{ history_type_filter }}" />
+            <input type="hidden" name="confirm_delete" value="1" />
+            <button type="submit" class="btn-row-delete" title="Delete">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+              </svg>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  </div>
+  <div class="table-empty-filter" id="noResults" style="display:none">
+    No records match your filter.
+  </div>
+</div>
+{{ history_pagination_block('bottom') }}
+
+{% else %}
+<div class="empty-state">
+  {% if history_kind == 'sets' %}
+  <p>No set practice records yet.</p>
+  {% else %}
+  <p>No practice records yet.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const root = document.querySelector('.history-page');
+    const historyKind = root?.dataset.historyKind || 'tunes';
+
+    document.querySelectorAll('.hist-delete-form').forEach(form => {
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        window.mpConfirmDeletion().then(ok => {
+          if (!ok) return;
+          form.submit();
+        });
+      });
+    });
+
+    function flashCell(el, state) {
+      if (!el) return;
+      el.classList.remove('flash-ok', 'flash-err');
+      el.classList.add(state === 'ok' ? 'flash-ok' : 'flash-err');
+      setTimeout(() => el.classList.remove('flash-ok', 'flash-err'), 1200);
+    }
+
+    const practiceApiPath = (recordId) =>
+      historyKind === 'sets' ? `/api/set-practice/${recordId}` : `/api/practice/${recordId}`;
+
+    function histDateApiValue(raw) {
+      let v = String(raw ?? '').trim();
+      if (!v) return '';
+      v = v.replace('T', ' ', 1);
+      return v;
+    }
+
+    document.querySelectorAll('.hist-date').forEach(input => {
+      input.addEventListener('change', () => {
+        const recordId = input.closest('tr').dataset.id;
+        const payload = histDateApiValue(input.value);
+        fetch(practiceApiPath(recordId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: payload })
+        })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            if (ok && data && data.ok) {
+              input.dataset.initial = input.value.trim();
+              flashCell(input, 'ok');
+            } else {
+              input.value = input.dataset.initial || '';
+              flashCell(input, 'err');
+            }
+          })
+          .catch(() => {
+            input.value = input.dataset.initial || '';
+            flashCell(input, 'err');
+          });
+      });
+    });
+
+    const tbody = document.querySelector('#historyTable tbody');
+    if (!tbody) return;
+
+    const headers = document.querySelectorAll('#historyTable th.sortable');
+    let sortCol = null;
+    let sortAsc = true;
+
+    function setThSortIcon(th, state) {
+      const wrap = th.querySelector('.sort-icon');
+      if (!wrap || !window.mpSortIcons) return;
+      if (state !== 'asc' && state !== 'desc') {
+        wrap.innerHTML = '';
+        return;
+      }
+      wrap.innerHTML = state === 'asc' ? window.mpSortIcons.asc : window.mpSortIcons.desc;
+    }
+
+    function stripArticle(s) {
+      return s.replace(/^(the|a)\s+/i, '');
+    }
+
+    function getCellText(row, colIdx) {
+      const td = row.cells[colIdx];
+      const date = td.querySelector('.hist-date');
+      if (date) return date.value || '';
+      const text = td.textContent.trim().toLowerCase();
+      if (colIdx === 1) return stripArticle(text);
+      return text;
+    }
+
+    function sortTable(colIdx) {
+      sortAsc = (sortCol === colIdx) ? !sortAsc : true;
+      sortCol = colIdx;
+      headers.forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        setThSortIcon(th, null);
+      });
+      const activeHeader = document.querySelector(`#historyTable th[data-col="${colIdx}"]`);
+      if (activeHeader) {
+        activeHeader.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+        setThSortIcon(activeHeader, sortAsc ? 'asc' : 'desc');
+      }
+
+      Array.from(tbody.querySelectorAll('tr'))
+        .sort((a, b) => {
+          if (historyKind === 'tunes' && colIdx === 4) {
+            const av = parseInt(getCellText(a, colIdx), 10) || 0;
+            const bv = parseInt(getCellText(b, colIdx), 10) || 0;
+            const cmp = av - bv;
+            return sortAsc ? cmp : -cmp;
+          }
+          const av = getCellText(a, colIdx);
+          const bv = getCellText(b, colIdx);
+          return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+        })
+        .forEach(r => tbody.appendChild(r));
+      updateStripes();
+    }
+
+    headers.forEach(th => th.addEventListener('click', () => sortTable(+th.dataset.col)));
+
+    const filterInput = document.getElementById('tableFilter');
+    const clearBtn = document.getElementById('clearFilter');
+    const noResults = document.getElementById('noResults');
+
+    function applyFilter() {
+      const term = filterInput.value.trim().toLowerCase();
+      clearBtn.style.display = term ? '' : 'none';
+      let visible = 0;
+      tbody.querySelectorAll('tr').forEach(row => {
+        const text = Array.from(row.cells).slice(0, -1).map(td => {
+          const dateInp = td.querySelector('.hist-date');
+          if (dateInp) return dateInp.value;
+          return td.textContent;
+        }).join(' ').toLowerCase();
+        const show = !term || text.includes(term);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      noResults.style.display = visible === 0 ? '' : 'none';
+      updateStripes();
+    }
+
+    filterInput.addEventListener('input', applyFilter);
+    clearBtn.addEventListener('click', () => { filterInput.value = ''; applyFilter(); filterInput.focus(); });
+
+    function updateStripes() {
+      let idx = 0;
+      tbody.querySelectorAll('tr').forEach(row => {
+        if (row.style.display === 'none') return;
+        row.classList.toggle('row-even', idx++ % 2 === 1);
+      });
+    }
+
+    updateStripes();
+  });
+</script>
+{% endblock %}

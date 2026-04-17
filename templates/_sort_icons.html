@@ -1,0 +1,9 @@
+{# Sort arrow slot — filled by JS when this column is the active sort. #}
+{%- macro sort_icon_slot() -%}
+<span class="sort-icon" aria-hidden="true"></span>
+{%- endmacro %}
+
+{# Wrap label + icon so they vertically center together (do not use flex on th — breaks table layout). #}
+{%- macro sortable_heading(label) -%}
+<span class="sortable-heading-inner">{{ label }} {{ sort_icon_slot() }}</span>
+{%- endmacro %}

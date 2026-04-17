@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Phrases – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="form-page phrases-page">
+  <div class="form-header phrases-header">
+    <form method="post" action="{{ url_for('phrase_subset_override') }}" class="phrases-override-form">
+      <label class="phrases-override-label">
+        <input type="checkbox" name="enabled" value="1"
+               {% if mp_settings.phrase_subset_override_enabled %}checked{% endif %}
+               onchange="this.form.requestSubmit();" />
+        Phrase override
+      </label>
+      <p class="phrases-override-hint">When on, the header uses this fixed set of five for the main pool: <em>Fiddle me this…</em>, <em>The jig is up.</em>, <em>You’ll polka your eye out.</em>, <em>Keeping it reel.</em>, <em>Britches get stiches.</em></p>
+    </form>
+    <div class="phrases-header-row">
+      <h2>Phrases</h2>
+      <button type="button" class="btn btn-primary btn-sm" id="phraseAddOpen">+ Add phrase</button>
+    </div>
+    <p class="phrases-lead">Create, edit, or remove saved phrases. This page is not linked from the sidebar.</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages" role="alert">
+      {% for category, message in messages %}
+      <p class="flash flash-{{ category }}">{{ message }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  {% if phrases %}
+  <h3 class="phrases-list-heading">Saved phrases</h3>
+  <div class="table-wrap">
+    <div class="table-wrap__inner">
+      <table class="tune-table table-layout-modern" id="phrasesTable">
+        <thead>
+          <tr>
+            <th class="phrases-col-num" scope="col">#</th>
+            <th class="phrases-col-text" scope="col">Phrase</th>
+            <th class="col-actions phrases-col-actions" scope="col"><span class="table-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in phrases %}
+          <tr data-phrase-id="{{ p.id }}">
+            <td class="phrases-col-num">{{ loop.index }}</td>
+            <td class="phrases-col-text phrase-cell-text">{{ p.body }}</td>
+            <td class="col-actions phrases-col-actions">
+              <div class="phrases-row-actions">
+                <button type="button" class="btn-row-edit phrase-edit-open" title="Edit" aria-label="Edit phrase">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                  </svg>
+                </button>
+                <form method="post" action="{{ url_for('phrase_delete', phrase_id=p.id) }}" class="phrase-delete-form">
+                  <button type="submit" class="btn-row-delete" title="Delete" aria-label="Delete phrase">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                    </svg>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty-hint">No phrases yet. Use <strong>+ Add phrase</strong> above to create one.</p>
+  {% endif %}
+</div>
+
+<div id="phraseFormBackdrop" class="tune-modal-backdrop" hidden aria-hidden="true">
+  <div class="tune-modal-dialog phrase-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="phraseFormTitle" tabindex="-1">
+    <button type="button" class="tune-modal-close" id="phraseFormClose" aria-label="Close">&times;</button>
+    <div class="tune-modal-body">
+      <h2 class="set-modal-title" id="phraseFormTitle">Phrase</h2>
+      <form method="post" id="phraseForm" action="#">
+        <div class="form-group">
+          <label for="phraseFormBody">Phrase</label>
+          <textarea id="phraseFormBody" name="body" class="tune-lessons-textarea" rows="6" required></textarea>
+        </div>
+        <div class="tune-modal-actions">
+          <button type="button" class="btn btn-secondary" id="phraseFormCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="phraseFormSubmit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var addUrl = {{ url_for('phrase_add') | tojson }};
+  var editSampleUrl = {{ url_for('phrase_edit', phrase_id=1) | tojson }};
+
+  function phraseEditUrl(id) {
+    var m = editSampleUrl.match(/^(.*\/phrases\/)\d+(\/edit.*)$/i);
+    if (m) return m[1] + id + m[2];
+    return '/phrases/' + id + '/edit';
+  }
+
+  var backdrop = document.getElementById('phraseFormBackdrop');
+  var form = document.getElementById('phraseForm');
+  var ta = document.getElementById('phraseFormBody');
+  var titleEl = document.getElementById('phraseFormTitle');
+  var closeBtn = document.getElementById('phraseFormClose');
+  var cancelBtn = document.getElementById('phraseFormCancel');
+  var submitBtn = document.getElementById('phraseFormSubmit');
+  var addOpen = document.getElementById('phraseAddOpen');
+  if (!backdrop || !form || !ta || !titleEl || !submitBtn) return;
+
+  function openPhraseAdd() {
+    form.action = addUrl;
+    titleEl.textContent = 'Add phrase';
+    submitBtn.textContent = 'Add phrase';
+    ta.value = '';
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+    ta.focus();
+  }
+
+  function openPhraseEdit(id, body) {
+    form.action = phraseEditUrl(id);
+    titleEl.textContent = 'Edit phrase';
+    submitBtn.textContent = 'Save';
+    ta.value = body;
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+    ta.focus();
+  }
+
+  function closePhraseForm() {
+    backdrop.hidden = true;
+    backdrop.setAttribute('aria-hidden', 'true');
+    ta.value = '';
+    form.action = '#';
+    submitBtn.textContent = 'Save';
+  }
+
+  addOpen.addEventListener('click', openPhraseAdd);
+
+  document.querySelectorAll('.phrase-edit-open').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var tr = btn.closest('tr');
+      if (!tr) return;
+      var id = tr.getAttribute('data-phrase-id');
+      var cell = tr.querySelector('.phrase-cell-text');
+      if (!id || !cell) return;
+      openPhraseEdit(id, cell.textContent);
+    });
+  });
+
+  closeBtn.addEventListener('click', closePhraseForm);
+  cancelBtn.addEventListener('click', closePhraseForm);
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) closePhraseForm();
+  });
+
+  document.querySelectorAll('.phrase-delete-form').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      window.mpConfirmDeletion().then(function (ok) {
+        if (ok) f.submit();
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

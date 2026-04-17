@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pearl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function () {
+      var ua = navigator.userAgent || '';
+      if (/iPad/.test(ua)) document.documentElement.classList.add('mp-selects-pending');
+      else if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
+        document.documentElement.classList.add('mp-selects-pending');
+      }
+    })();
+  </script>
+  {% block head_early %}{% endblock %}
+  <title>{% block title %}Fiddle Practice{% endblock %}</title>
+  <script>
+    (function () {
+      // Server settings.json is the source of truth (syncs across devices via Dropbox).
+      // We apply them immediately here to avoid any flash of wrong theme/state.
+      var s = {{ mp_settings | tojson }};
+      var t = s.theme || 'pearl';
+      document.documentElement.setAttribute('data-theme', t);
+      if (!s.card_dividers) {
+        document.documentElement.setAttribute('data-card-dividers', 'off');
+      }
+      if (s.mark_played_today) {
+        document.documentElement.setAttribute('data-mp-mark-played-today', 'on');
+      }
+      if (s.bold_card_titles) {
+        document.documentElement.setAttribute('data-mp-bold-card-titles', 'on');
+      }
+      document.documentElement.setAttribute('data-mp-type-bubbles', s.type_bubbles !== false ? 'on' : 'off');
+      if (s.sidebar_collapsed) {
+        document.documentElement.setAttribute('data-mp-sidebar-collapsed', '1');
+      }
+      // Keep localStorage in sync so the rest of the JS can still read from it.
+      localStorage.setItem('mp-theme', t);
+      localStorage.setItem('mp-card-dividers', s.card_dividers ? 'on' : 'off');
+      s.mark_played_today ? localStorage.setItem('mp-mark-played-today', 'on') : localStorage.removeItem('mp-mark-played-today');
+      s.bold_card_titles  ? localStorage.setItem('mp-bold-card-titles',  'on') : localStorage.removeItem('mp-bold-card-titles');
+      localStorage.setItem('mp-type-bubbles', s.type_bubbles !== false ? 'on' : 'off');
+      s.sidebar_collapsed ? localStorage.setItem('mp-sidebar-collapsed', '1') : localStorage.removeItem('mp-sidebar-collapsed');
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="{{ url_for('static', filename='mp_suggest.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_practice_groups.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_custom_select.js') }}" defer></script>
+  <script>
+    (function () {
+      var a = ' xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+      window.mpSortIcons = {
+        asc: '<svg' + a + ' class="sort-icon-svg" width="5.625" height="10" viewBox="2 3 10 18"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>',
+        desc: '<svg' + a + ' class="sort-icon-svg" width="5.625" height="10" viewBox="12 3 10 18"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>'
+      };
+    })();
+  </script>
+</head>
+<body data-mp-server-today="{{ mp_server_today }}">
+  <header class="{% if header_random_phrase %}header--with-tagline{% endif %}">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="header-icon header-icon--fiddle" aria-hidden="true">
+          <img src="{{ url_for('static', filename='fiddle-svgrepo-com.svg') }}" alt="" class="header-fiddle-img" decoding="async" />
+        </span>
+        <div class="header-title-group">
+          <h1>Fiddle Practice</h1>
+          {% if header_random_phrase %}
+          <p class="header-tagline">{{ header_random_phrase }}</p>
+          {% endif %}
+        </div>
+      </div>
+      <button type="button" class="header-menu-btn" id="headerMenuBtn"
+              aria-label="Open menu" aria-expanded="false" aria-controls="mobileNavPanel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="header-menu-icon" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a id="sidebarNavIndex" href="{{ url_for('index') }}"
+           class="sidebar-item {% if request.endpoint == 'index' %}active{% endif %}">
+          Tunes
+        </a>
+        <a id="sidebarNavPlayCounts" href="{{ url_for('times_played') }}"
+           class="sidebar-item {% if request.endpoint == 'times_played' %}active{% endif %}">
+          Play Counts
+        </a>
+        <a id="sidebarNavTable" href="{{ url_for('table_view') }}"
+           class="sidebar-item {% if request.endpoint == 'table_view' and not request.args.get('practice_group') %}active{% endif %}">
+          Table
+        </a>
+        {% if mp_sidebar_practice_groups %}
+        <details class="sidebar-fold sidebar-practice-groups-fold"
+                 {% if request.endpoint == 'table_view' and request.args.get('practice_group') %}open{% endif %}>
+          <summary class="sidebar-fold-summary">Practice Groups</summary>
+          <div class="sidebar-fold-links">
+            {% for g in mp_sidebar_practice_groups %}
+            <a href="{{ url_for('table_view', practice_group=g) }}"
+               class="sidebar-item sidebar-item--nested {% if request.endpoint == 'table_view' and request.args.get('practice_group') == g %}active{% endif %}">{{ g }}</a>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+        <a href="{{ url_for('sets_view') }}"
+           class="sidebar-item {% if request.endpoint == 'sets_view' %}active{% endif %}">
+          Sets
+        </a>
+        <a href="{{ url_for('history_view') }}"
+           class="sidebar-item {% if request.endpoint == 'history_view' %}active{% endif %}">
+          Practice History
+        </a>
+        <a id="sidebarNavStatistics" href="{{ url_for('statistics_view') }}"
+           class="sidebar-item {% if request.endpoint == 'statistics_view' %}active{% endif %}">
+          Statistics
+        </a>
+        <a id="sidebarNavRefresh" href="{{ url_for('refresh_view') }}"
+           class="sidebar-item {% if request.endpoint == 'refresh_view' %}active{% endif %}">
+          Refresh
+        </a>
+        <a id="sidebarNavLessonTunes" href="{{ url_for('lesson_tunes_view') }}"
+           class="sidebar-item {% if request.endpoint == 'lesson_tunes_view' %}active{% endif %}">
+          Lesson Tunes
+        </a>
+      </nav>
+
+      <!-- Settings Button + Collapse toggle inside sidebar footer -->
+      <div class="sidebar-footer">
+        <button class="settings-fab" id="settingsBtn" aria-label="Settings" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse sidebar" title="Collapse sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V5"/><path d="m13 6-6 6 6 6"/><path d="M7 12h14"/></svg>
+        </button>
+      </div>
+      <div class="sidebar-expand-bar" id="sidebarExpandBar">
+        <button class="sidebar-expand-btn" id="sidebarExpandBtn" aria-label="Expand sidebar" title="Expand sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer>
+        <p>Fiddle Practice Tracker</p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Mobile menu (shown ≤520px): replaces horizontal sidebar row -->
+  <button type="button" class="mobile-nav-backdrop" id="mobileNavBackdrop" hidden aria-label="Close menu"></button>
+  <div class="mobile-nav-panel" id="mobileNavPanel" role="dialog" aria-modal="true"
+       aria-labelledby="mobileNavTitle" aria-hidden="true" hidden>
+    <div class="mobile-nav-panel-header">
+      <span id="mobileNavTitle" class="mobile-nav-panel-title">Menu</span>
+      <button type="button" class="mobile-nav-close" id="mobileNavClose" aria-label="Close menu">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <nav class="mobile-nav-links" aria-label="Main navigation">
+      <a id="mobileNavIndex" href="{{ url_for('index') }}"
+         class="sidebar-item {% if request.endpoint == 'index' %}active{% endif %}">
+        Tunes
+      </a>
+      <a id="mobileNavPlayCounts" href="{{ url_for('times_played') }}"
+         class="sidebar-item {% if request.endpoint == 'times_played' %}active{% endif %}">
+        Play Counts
+      </a>
+      <a id="mobileNavTable" href="{{ url_for('table_view') }}"
+         class="sidebar-item {% if request.endpoint == 'table_view' and not request.args.get('practice_group') %}active{% endif %}">
+        Table
+      </a>
+      {% if mp_sidebar_practice_groups %}
+      <details class="sidebar-fold sidebar-practice-groups-fold mobile-nav-practice-groups"
+               {% if request.endpoint == 'table_view' and request.args.get('practice_group') %}open{% endif %}>
+        <summary class="sidebar-fold-summary">Practice Groups</summary>
+        <div class="sidebar-fold-links">
+          {% for g in mp_sidebar_practice_groups %}
+          <a href="{{ url_for('table_view', practice_group=g) }}"
+             class="sidebar-item sidebar-item--nested {% if request.endpoint == 'table_view' and request.args.get('practice_group') == g %}active{% endif %}">{{ g }}</a>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      <a href="{{ url_for('sets_view') }}"
+         class="sidebar-item {% if request.endpoint == 'sets_view' %}active{% endif %}">
+        Sets
+      </a>
+      <a href="{{ url_for('history_view') }}"
+         class="sidebar-item {% if request.endpoint == 'history_view' %}active{% endif %}">
+        Practice History
+      </a>
+      <a id="mobileNavStatistics" href="{{ url_for('statistics_view') }}"
+         class="sidebar-item {% if request.endpoint == 'statistics_view' %}active{% endif %}">
+        Statistics
+      </a>
+      <a id="mobileNavRefresh" href="{{ url_for('refresh_view') }}"
+         class="sidebar-item {% if request.endpoint == 'refresh_view' %}active{% endif %}">
+        Refresh
+      </a>
+      <a id="mobileNavLessonTunes" href="{{ url_for('lesson_tunes_view') }}"
+         class="sidebar-item {% if request.endpoint == 'lesson_tunes_view' %}active{% endif %}">
+        Lesson Tunes
+      </a>
+    </nav>
+    <div class="mobile-nav-footer">
+      <button type="button" class="settings-fab" id="mobileNavSettingsBtn" aria-label="Settings" title="Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="settings-panel" id="settingsPanel" aria-hidden="true">
+    <div class="settings-panel-header">
+      <span>Settings</span>
+      <button class="settings-close" id="settingsClose" aria-label="Close settings">✕</button>
+    </div>
+
+    <!-- Themes Section -->
+    <div class="settings-section">
+      <button class="settings-section-toggle" id="themesToggle" aria-expanded="false">
+        <span>Themes</span>
+        <span class="toggle-arrow">›</span>
+      </button>
+      <div class="settings-section-body" id="themesBody">
+        <div class="theme-options">
+          <button class="theme-option" data-theme="pearl">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f6f7f9 50%,#0b4f8c 50%)"></span>
+            Pearl
+          </button>
+          <button class="theme-option" data-theme="arctic">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f4f9fc 50%,#0369a1 50%)"></span>
+            Arctic
+          </button>
+          <button class="theme-option" data-theme="blush">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#fdf5f7 50%,#9d174d 50%)"></span>
+            Blush
+          </button>
+          <button class="theme-option" data-theme="clay">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f2ebe4 50%,#a63c0c 50%)"></span>
+            Clay
+          </button>
+          <button class="theme-option" data-theme="iris">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f2f4fb 50%,#4c5ecd 50%)"></span>
+            Iris
+          </button>
+          <button class="theme-option" data-theme="ivory">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#faf9f6 50%,#1e5c3a 50%)"></span>
+            Ivory
+          </button>
+          <button class="theme-option" data-theme="linen">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f7f3eb 50%,#8b4513 50%)"></span>
+            Linen
+          </button>
+          <button class="theme-option" data-theme="mist">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#eef2f6 50%,#1e40af 50%)"></span>
+            Mist
+          </button>
+          <button class="theme-option" data-theme="copper">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f7f1eb 50%,#9c5b2e 50%)"></span>
+            Copper
+          </button>
+          <button class="theme-option" data-theme="wisteria">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#f3f1f8 50%,#5b21b6 50%)"></span>
+            Wisteria
+          </button>
+          <button class="theme-option" data-theme="fjord">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#e9f0f2 50%,#107896 50%)"></span>
+            Fjord
+          </button>
+          <button class="theme-option" data-theme="citrine">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#faf8f0 50%,#7c6f3a 50%)"></span>
+            Citrine
+          </button>
+          <button class="theme-option" data-theme="peony">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#fdf6f4 50%,#b54a38 50%)"></span>
+            Peony
+          </button>
+          <button class="theme-option" data-theme="cute">
+            <span class="theme-swatch" style="background:linear-gradient(135deg,#fff5fb 50%,#db2777 50%)"></span>
+            Cute
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phrases (header tagline) -->
+    <div class="settings-section">
+      <button class="settings-section-toggle" id="phrasesSettingsToggle" aria-expanded="false">
+        <span>Phrases</span>
+        <span class="toggle-arrow">›</span>
+      </button>
+      <div class="settings-section-body" id="phrasesSettingsBody">
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="phraseVarietyLabel">Variety</span>
+          <select id="phraseVarietySelect" class="settings-select" data-mp-dd-skip
+                  aria-labelledby="phraseVarietyLabel">
+            <option value="low" {% if mp_settings.phrase_variety == 'low' %}selected{% endif %}>Low</option>
+            <option value="medium" {% if mp_settings.phrase_variety == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="high" {% if mp_settings.phrase_variety == 'high' %}selected{% endif %}>High</option>
+            <option value="all" {% if mp_settings.phrase_variety == 'all' %}selected{% endif %}>All</option>
+          </select>
+        </div>
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="phraseFrequencyLabel">Frequency</span>
+          <select id="phraseFrequencySelect" class="settings-select" data-mp-dd-skip
+                  aria-labelledby="phraseFrequencyLabel">
+            <option value="1" {% if (mp_settings.phrase_frequency_sec | default(1)) == 1 %}selected{% endif %}>1 sec</option>
+            <option value="30" {% if mp_settings.phrase_frequency_sec == 30 %}selected{% endif %}>30 sec</option>
+            <option value="60" {% if mp_settings.phrase_frequency_sec == 60 %}selected{% endif %}>1 min</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Other Section -->
+    <div class="settings-section">
+      <button class="settings-section-toggle" id="otherToggle" aria-expanded="false">
+        <span>Other</span>
+        <span class="toggle-arrow">›</span>
+      </button>
+      <div class="settings-section-body" id="otherBody">
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="cardDividersLabel">Card dividers</span>
+          <button type="button" class="settings-binary-toggle" id="cardDividersToggle" aria-pressed="true" aria-labelledby="cardDividersLabel">On</button>
+        </div>
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="markPlayedTodayLabel">Mark played today</span>
+          <button type="button" class="settings-binary-toggle" id="markPlayedTodayToggle" aria-pressed="false" aria-labelledby="markPlayedTodayLabel">Off</button>
+        </div>
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="boldCardTitlesLabel">Bold Titles</span>
+          <button type="button" class="settings-binary-toggle" id="boldCardTitlesToggle" aria-pressed="false" aria-labelledby="boldCardTitlesLabel">Off</button>
+        </div>
+        <div class="settings-option-row">
+          <span class="settings-option-label" id="typeBubblesLabel">Type bubbles</span>
+          <button type="button" class="settings-binary-toggle" id="typeBubblesToggle" aria-pressed="true" aria-labelledby="typeBubblesLabel">On</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tune edit modal (card quick-edit) -->
+  <div id="tuneModalBackdrop" class="tune-modal-backdrop" hidden aria-hidden="true">
+    <div class="tune-modal-dialog" role="dialog" aria-modal="true" aria-label="Edit tune" tabindex="-1">
+      <button type="button" class="tune-modal-close" id="tuneModalCloseBtn" aria-label="Close">&times;</button>
+      <div id="tuneModalBody" class="tune-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Delete confirmation (replaces window.confirm for destructive actions) -->
+  <div id="mpConfirmBackdrop" class="tune-modal-backdrop mp-confirm-backdrop" hidden aria-hidden="true">
+    <div class="tune-modal-dialog mp-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="mpConfirmMessage" tabindex="-1">
+      <div class="tune-modal-body mp-confirm-body">
+        <p class="mp-confirm-message" id="mpConfirmMessage">Confirm deletion?</p>
+        <div class="tune-modal-actions mp-confirm-actions">
+          <button type="button" class="btn btn-secondary" id="mpConfirmCancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="mpConfirmOk">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" crossorigin="anonymous"></script>
+  <script>
+    // ── Persist a setting to settings.json on the server (fire-and-forget) ──
+    function mpSaveSetting(updates) {
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }).catch(() => {});
+    }
+
+    // ── Theme persistence ──
+    let savedTheme = localStorage.getItem('mp-theme') || 'pearl';
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('mp-theme', theme);
+      mpSaveSetting({ theme });
+      document.querySelectorAll('.theme-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+      });
+    }
+
+    // Mark saved theme active once DOM is ready
+    document.querySelectorAll('.theme-option').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === savedTheme);
+      btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+    });
+
+    // ── Card dividers (Other) ──
+    const CARD_DIVIDERS_KEY = 'mp-card-dividers';
+
+    function cardDividersEnabled() {
+      return localStorage.getItem(CARD_DIVIDERS_KEY) !== 'off';
+    }
+
+    function setCardDividersEnabled(on) {
+      if (on) {
+        localStorage.setItem(CARD_DIVIDERS_KEY, 'on');
+        document.documentElement.removeAttribute('data-card-dividers');
+      } else {
+        localStorage.setItem(CARD_DIVIDERS_KEY, 'off');
+        document.documentElement.setAttribute('data-card-dividers', 'off');
+      }
+      mpSaveSetting({ card_dividers: on });
+      syncCardDividersToggle();
+    }
+
+    function syncCardDividersToggle() {
+      const btn = document.getElementById('cardDividersToggle');
+      if (!btn) return;
+      const on = cardDividersEnabled();
+      btn.textContent = on ? 'On' : 'Off';
+      btn.setAttribute('aria-pressed', String(on));
+    }
+
+    syncCardDividersToggle();
+    document.getElementById('cardDividersToggle')?.addEventListener('click', () => {
+      setCardDividersEnabled(!cardDividersEnabled());
+    });
+
+    // ── Mark played today (Other) ──
+    const MARK_PLAYED_TODAY_KEY = 'mp-mark-played-today';
+
+    function markPlayedTodayEnabled() {
+      return localStorage.getItem(MARK_PLAYED_TODAY_KEY) === 'on';
+    }
+
+    function mpTodayIsoForHighlight() {
+      const fromBody = document.body?.dataset.mpServerToday;
+      return (fromBody || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    }
+
+    function mpLastPracticedIsToday(iso) {
+      if (!iso || !String(iso).trim()) return false;
+      return String(iso).slice(0, 10) === mpTodayIsoForHighlight();
+    }
+
+    function setMarkPlayedTodayEnabled(on) {
+      if (on) {
+        localStorage.setItem(MARK_PLAYED_TODAY_KEY, 'on');
+        document.documentElement.setAttribute('data-mp-mark-played-today', 'on');
+      } else {
+        localStorage.removeItem(MARK_PLAYED_TODAY_KEY);
+        document.documentElement.removeAttribute('data-mp-mark-played-today');
+      }
+      mpSaveSetting({ mark_played_today: on });
+      syncMarkPlayedTodayToggle();
+      window.mpSyncPlayedTodayHighlight?.();
+    }
+
+    function syncMarkPlayedTodayToggle() {
+      const btn = document.getElementById('markPlayedTodayToggle');
+      if (!btn) return;
+      const on = markPlayedTodayEnabled();
+      btn.textContent = on ? 'On' : 'Off';
+      btn.setAttribute('aria-pressed', String(on));
+    }
+
+    window.mpSyncPlayedTodayHighlight = function mpSyncPlayedTodayHighlight() {
+      const on = markPlayedTodayEnabled();
+      if (on) {
+        document.documentElement.setAttribute('data-mp-mark-played-today', 'on');
+      } else {
+        document.documentElement.removeAttribute('data-mp-mark-played-today');
+      }
+      document.querySelectorAll('[data-last-practiced]').forEach((el) => {
+        const iso = el.getAttribute('data-last-practiced');
+        el.classList.toggle('played-today', on && mpLastPracticedIsToday(iso));
+      });
+    };
+
+    syncMarkPlayedTodayToggle();
+    document.getElementById('markPlayedTodayToggle')?.addEventListener('click', () => {
+      setMarkPlayedTodayEnabled(!markPlayedTodayEnabled());
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      window.mpSyncPlayedTodayHighlight?.();
+    });
+
+    // ── Bold card titles (Other) ──
+    const BOLD_CARD_TITLES_KEY = 'mp-bold-card-titles';
+
+    function boldCardTitlesEnabled() {
+      return localStorage.getItem(BOLD_CARD_TITLES_KEY) === 'on';
+    }
+
+    function setBoldCardTitlesEnabled(on) {
+      if (on) {
+        localStorage.setItem(BOLD_CARD_TITLES_KEY, 'on');
+        document.documentElement.setAttribute('data-mp-bold-card-titles', 'on');
+      } else {
+        localStorage.removeItem(BOLD_CARD_TITLES_KEY);
+        document.documentElement.removeAttribute('data-mp-bold-card-titles');
+      }
+      mpSaveSetting({ bold_card_titles: on });
+      syncBoldCardTitlesToggle();
+    }
+
+    function syncBoldCardTitlesToggle() {
+      const btn = document.getElementById('boldCardTitlesToggle');
+      if (!btn) return;
+      const on = boldCardTitlesEnabled();
+      btn.textContent = on ? 'On' : 'Off';
+      btn.setAttribute('aria-pressed', String(on));
+    }
+
+    syncBoldCardTitlesToggle();
+    document.getElementById('boldCardTitlesToggle')?.addEventListener('click', () => {
+      setBoldCardTitlesEnabled(!boldCardTitlesEnabled());
+    });
+
+    // ── Type bubbles (Other) ──
+    const TYPE_BUBBLES_KEY = 'mp-type-bubbles';
+
+    function typeBubblesEnabled() {
+      return localStorage.getItem(TYPE_BUBBLES_KEY) !== 'off';
+    }
+
+    function setTypeBubblesEnabled(on) {
+      localStorage.setItem(TYPE_BUBBLES_KEY, on ? 'on' : 'off');
+      document.documentElement.setAttribute('data-mp-type-bubbles', on ? 'on' : 'off');
+      mpSaveSetting({ type_bubbles: on });
+      syncTypeBubblesToggle();
+    }
+
+    function syncTypeBubblesToggle() {
+      const btn = document.getElementById('typeBubblesToggle');
+      if (!btn) return;
+      const on = typeBubblesEnabled();
+      btn.textContent = on ? 'On' : 'Off';
+      btn.setAttribute('aria-pressed', String(on));
+    }
+
+    syncTypeBubblesToggle();
+    document.getElementById('typeBubblesToggle')?.addEventListener('click', () => {
+      setTypeBubblesEnabled(!typeBubblesEnabled());
+    });
+
+    // ── Sidebar collapse / expand ──
+    const sidebarEl = document.querySelector('.sidebar');
+    const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+    const sidebarExpandBtn = document.getElementById('sidebarExpandBtn');
+
+    function sidebarCollapsed() {
+      return localStorage.getItem('mp-sidebar-collapsed') === '1';
+    }
+
+    function setSidebarCollapsed(collapsed) {
+      if (collapsed) {
+        localStorage.setItem('mp-sidebar-collapsed', '1');
+        sidebarEl.classList.add('collapsed');
+      } else {
+        localStorage.removeItem('mp-sidebar-collapsed');
+        sidebarEl.classList.remove('collapsed');
+      }
+      mpSaveSetting({ sidebar_collapsed: collapsed });
+    }
+
+    if (sidebarCollapsed()) sidebarEl.classList.add('collapsed');
+    document.documentElement.removeAttribute('data-mp-sidebar-collapsed');
+
+    sidebarCollapseBtn?.addEventListener('click', () => setSidebarCollapsed(true));
+    sidebarExpandBtn?.addEventListener('click', () => setSidebarCollapsed(false));
+
+    // ── Mobile nav drawer (≤520px) ──
+    const headerMenuBtn = document.getElementById('headerMenuBtn');
+    const mobileNavBackdrop = document.getElementById('mobileNavBackdrop');
+    const mobileNavPanel = document.getElementById('mobileNavPanel');
+    const mobileNavClose = document.getElementById('mobileNavClose');
+    const mobileNavSettingsBtn = document.getElementById('mobileNavSettingsBtn');
+
+    function mobileNavIsOpen() {
+      return mobileNavPanel && !mobileNavPanel.hasAttribute('hidden');
+    }
+
+    function openMobileNav() {
+      if (!mobileNavPanel || !headerMenuBtn || !mobileNavBackdrop) return;
+      mobileNavBackdrop.removeAttribute('hidden');
+      mobileNavPanel.removeAttribute('hidden');
+      mobileNavPanel.setAttribute('aria-hidden', 'false');
+      headerMenuBtn.setAttribute('aria-expanded', 'true');
+      document.body.classList.add('mobile-nav-open');
+      window.setTimeout(() => mobileNavClose?.focus(), 0);
+    }
+
+    function closeMobileNav() {
+      if (!mobileNavPanel || !headerMenuBtn || !mobileNavBackdrop) return;
+      mobileNavBackdrop.setAttribute('hidden', '');
+      mobileNavPanel.setAttribute('hidden', '');
+      mobileNavPanel.setAttribute('aria-hidden', 'true');
+      headerMenuBtn.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('mobile-nav-open');
+      headerMenuBtn.focus();
+    }
+
+    // ── Settings panel toggle ──
+    const settingsBtn   = document.getElementById('settingsBtn');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const settingsClose = document.getElementById('settingsClose');
+
+    function settingsFabTriggers() {
+      return [document.getElementById('settingsBtn'), document.getElementById('mobileNavSettingsBtn')].filter(Boolean);
+    }
+
+    function openSettings() {
+      settingsPanel.classList.add('open');
+      settingsPanel.setAttribute('aria-hidden', 'false');
+      settingsFabTriggers().forEach((btn) => btn.classList.add('active'));
+    }
+
+    function closeSettings() {
+      settingsPanel.classList.remove('open');
+      settingsPanel.setAttribute('aria-hidden', 'true');
+      settingsFabTriggers().forEach((btn) => btn.classList.remove('active'));
+    }
+
+    settingsBtn.addEventListener('click', () => {
+      settingsPanel.classList.contains('open') ? closeSettings() : openSettings();
+    });
+
+    mobileNavSettingsBtn?.addEventListener('click', () => {
+      closeMobileNav();
+      openSettings();
+    });
+
+    headerMenuBtn?.addEventListener('click', () => {
+      mobileNavIsOpen() ? closeMobileNav() : openMobileNav();
+    });
+    mobileNavClose?.addEventListener('click', closeMobileNav);
+    mobileNavBackdrop?.addEventListener('click', closeMobileNav);
+    mobileNavPanel?.querySelector('.mobile-nav-links')?.addEventListener('click', (e) => {
+      if (e.target.closest('a')) closeMobileNav();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !mobileNavIsOpen()) return;
+      closeMobileNav();
+      e.preventDefault();
+    });
+    window.addEventListener('resize', () => {
+      if (window.matchMedia('(min-width: 521px)').matches && mobileNavIsOpen()) closeMobileNav();
+    });
+
+    settingsClose.addEventListener('click', closeSettings);
+
+    document.addEventListener('click', (e) => {
+      if (!settingsPanel.classList.contains('open')) return;
+      if (settingsPanel.contains(e.target)) return;
+      if (e.target.closest('#settingsBtn, #mobileNavSettingsBtn')) return;
+      closeSettings();
+    });
+
+    // ── Section accordions ──
+    function makeAccordion(toggleId, bodyId) {
+      const toggle = document.getElementById(toggleId);
+      const body   = document.getElementById(bodyId);
+      toggle.addEventListener('click', () => {
+        const open = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!open));
+        body.classList.toggle('expanded', !open);
+        toggle.querySelector('.toggle-arrow').classList.toggle('rotated', !open);
+      });
+    }
+
+    makeAccordion('themesToggle', 'themesBody');
+    makeAccordion('phrasesSettingsToggle', 'phrasesSettingsBody');
+    makeAccordion('otherToggle',  'otherBody');
+
+    document.getElementById('phraseVarietySelect')?.addEventListener('change', (e) => {
+      mpSaveSetting({ phrase_variety: e.target.value });
+    });
+    document.getElementById('phraseFrequencySelect')?.addEventListener('change', (e) => {
+      const n = parseInt(e.target.value, 10);
+      if (!Number.isNaN(n)) mpSaveSetting({ phrase_frequency_sec: n });
+    });
+
+    // Restore saved filters on the sidebar href so navigation is one request (avoids
+    // index / play-counts / table scripts doing a second full load via location.replace).
+    function mpPatchSidebarLinksFromStorage() {
+      const idx = document.getElementById('sidebarNavIndex');
+      const idxM = document.getElementById('mobileNavIndex');
+      const idxEl = idx || idxM;
+      if (idxEl) {
+        const base = new URL(idxEl.getAttribute('href'), window.location.origin);
+        const params = new URLSearchParams();
+        const tt = localStorage.getItem('mp-filter-tune-type') || '';
+        let s = localStorage.getItem('mp-filter-sort') || '';
+        if (s === 'oldest') s = 'last_asc';
+        if (tt) params.set('tune_type', tt);
+        if (s && s !== 'name') params.set('sort', s);
+        const q = params.toString();
+        if (q) {
+          const href = base.pathname + '?' + q;
+          if (idx) idx.setAttribute('href', href);
+          if (idxM) idxM.setAttribute('href', href);
+        }
+      }
+      const tp = document.getElementById('sidebarNavPlayCounts');
+      const tpM = document.getElementById('mobileNavPlayCounts');
+      const tpEl = tp || tpM;
+      if (tpEl) {
+        const base = new URL(tpEl.getAttribute('href'), window.location.origin);
+        const params = new URLSearchParams();
+        const tt = localStorage.getItem('mp-tp-tune_type') || '';
+        const p = localStorage.getItem('mp-tp-period') || '';
+        const s = localStorage.getItem('mp-tp-sort') || '';
+        if (tt) params.set('tune_type', tt);
+        if (p) params.set('period', p);
+        if (s) params.set('sort', s);
+        const q = params.toString();
+        if (q) {
+          const href = base.pathname + '?' + q;
+          if (tp) tp.setAttribute('href', href);
+          if (tpM) tpM.setAttribute('href', href);
+        }
+      }
+      const tbl = document.getElementById('sidebarNavTable');
+      const tblM = document.getElementById('mobileNavTable');
+      const tblEl = tbl || tblM;
+      if (tblEl) {
+        const base = new URL(tblEl.getAttribute('href'), window.location.origin);
+        const tt = localStorage.getItem('mp-filter-tune-type') || '';
+        if (tt) {
+          const href = base.pathname + '?tune_type=' + encodeURIComponent(tt);
+          if (tbl) tbl.setAttribute('href', href);
+          if (tblM) tblM.setAttribute('href', href);
+        }
+      }
+    }
+    mpPatchSidebarLinksFromStorage();
+
+    // ── Tune edit modal (gallery cards) ──
+    const tuneModalBackdrop = document.getElementById('tuneModalBackdrop');
+    const tuneModalBody     = document.getElementById('tuneModalBody');
+    const tuneModalCloseBtn = document.getElementById('tuneModalCloseBtn');
+
+    const mpConfirmBackdrop = document.getElementById('mpConfirmBackdrop');
+    const mpConfirmOk = document.getElementById('mpConfirmOk');
+    const mpConfirmCancel = document.getElementById('mpConfirmCancel');
+    let mpConfirmPromiseResolve = null;
+
+    function mpCloseConfirmDialog(result) {
+      if (mpConfirmBackdrop) {
+        mpConfirmBackdrop.hidden = true;
+        mpConfirmBackdrop.setAttribute('aria-hidden', 'true');
+      }
+      const fn = mpConfirmPromiseResolve;
+      mpConfirmPromiseResolve = null;
+      if (fn) fn(!!result);
+    }
+
+    window.mpConfirmDeletion = function () {
+      return new Promise((resolve) => {
+        mpConfirmPromiseResolve = resolve;
+        if (!mpConfirmBackdrop) {
+          resolve(false);
+          return;
+        }
+        mpConfirmBackdrop.hidden = false;
+        mpConfirmBackdrop.setAttribute('aria-hidden', 'false');
+        mpConfirmOk?.focus();
+      });
+    };
+
+    mpConfirmOk?.addEventListener('click', () => mpCloseConfirmDialog(true));
+    mpConfirmCancel?.addEventListener('click', () => mpCloseConfirmDialog(false));
+    mpConfirmBackdrop?.addEventListener('click', (e) => {
+      if (e.target === mpConfirmBackdrop) mpCloseConfirmDialog(false);
+    });
+    mpConfirmBackdrop?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        mpCloseConfirmDialog(false);
+      }
+    });
+
+    function mpSyncTuneTableRowFromModal() {
+      const form = tuneModalBody.querySelector('#tuneEditForm');
+      const table = document.getElementById('tuneTable');
+      if (!form || !table) return;
+
+      let tuneId;
+      try {
+        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
+        if (parts[0] !== 'edit' || !parts[1]) return;
+        tuneId = parts[1];
+      } catch (e) {
+        return;
+      }
+
+      const row = table.querySelector('tbody tr[data-id="' + tuneId + '"]');
+      if (!row) return;
+
+      const nameInp = form.querySelector('#tune_name_field');
+      if (nameInp) {
+        const cell = row.querySelector('.cell-edit[data-field="name"]');
+        if (cell) cell.textContent = nameInp.value.trim();
+      }
+
+      const tt = form.querySelector('#tune_tune_type');
+      if (tt) {
+        const inp = row.querySelector('input[data-field="tune_type"]');
+        if (inp) inp.value = tt.value.trim();
+      }
+
+      const keyInp = form.querySelector('#tune_key');
+      if (keyInp) {
+        const inp = row.querySelector('input[data-field="key"]');
+        if (inp) inp.value = keyInp.value.trim();
+      }
+
+      const composerInp = form.querySelector('#tune_composer');
+      if (composerInp) {
+        const cell = row.querySelector('.cell-edit[data-field="composer"]');
+        if (cell) cell.textContent = composerInp.value.trim();
+      }
+
+      const lessonsTa = form.querySelector('#tune_lessons');
+      const lesCell = row.querySelector('.col-lessons .lessons-table-display');
+      if (lessonsTa && lesCell) {
+        lesCell.replaceChildren();
+        const lines = lessonsTa.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        lines.forEach(f => {
+          const span = document.createElement('span');
+          span.className = 'lesson-file-pill';
+          span.setAttribute('role', 'listitem');
+          span.textContent = f;
+          lesCell.appendChild(span);
+        });
+        if (lines.length === 0) {
+          const em = document.createElement('span');
+          em.className = 'lessons-table-empty';
+          em.setAttribute('aria-hidden', 'true');
+          em.textContent = '—';
+          lesCell.appendChild(em);
+        }
+      }
+
+      const pgHiddens = form.querySelectorAll('.mp-practice-groups-hiddens input[name="practice_group"]');
+      const pgCell = row.querySelector('.col-practice-groups .practice-groups-table-display');
+      if (pgCell) {
+        const vals = Array.from(pgHiddens)
+          .map(inp => inp.value.trim())
+          .filter(Boolean);
+        pgCell.replaceChildren();
+        vals.forEach(g => {
+          const span = document.createElement('span');
+          span.className = 'practice-group-table-pill';
+          span.setAttribute('role', 'listitem');
+          span.textContent = g;
+          pgCell.appendChild(span);
+        });
+        if (vals.length === 0) {
+          const em = document.createElement('span');
+          em.className = 'practice-groups-table-empty';
+          em.setAttribute('aria-hidden', 'true');
+          em.textContent = '—';
+          pgCell.appendChild(em);
+        }
+      }
+
+      if (typeof window.mpTableRefreshAfterModal === 'function') window.mpTableRefreshAfterModal();
+    }
+
+    function mpSyncSetsTableRowFromModal() {
+      const form = tuneModalBody.querySelector('#setEditForm');
+      const table = document.getElementById('setsTable');
+      if (!form || !table) return;
+
+      let setId;
+      try {
+        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
+        if (parts[0] !== 'set' || parts[2] !== 'edit' || !parts[1]) return;
+        setId = parts[1];
+      } catch (e) {
+        return;
+      }
+
+      const row = table.querySelector('tbody tr[data-id="' + setId + '"]');
+      if (!row) return;
+
+      const descInp = form.querySelector('#set_edit_description');
+      if (descInp) {
+        const span = row.querySelector('.sets-cell-desc');
+        if (span) {
+          const t = descInp.value.trim();
+          span.textContent = t || '—';
+        }
+      }
+
+      const typeInp = form.querySelector('#set_edit_type');
+      if (typeInp) {
+        const typeCell = row.querySelector('.sets-col-type');
+        if (typeCell) {
+          const t = typeInp.value.trim();
+          typeCell.textContent = '';
+          typeCell.classList.toggle('sets-col-type--empty', !t);
+          if (t) {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-type';
+            badge.textContent = t;
+            typeCell.appendChild(badge);
+          } else {
+            const empty = document.createElement('span');
+            empty.className = 'sets-cell-empty';
+            empty.textContent = '—';
+            typeCell.appendChild(empty);
+          }
+        }
+      }
+
+      const tunesBody = tuneModalBody.querySelector('#setTunesTable tbody');
+      if (tunesBody) {
+        const names = [];
+        tunesBody.querySelectorAll('tr.set-tune-row').forEach(tr => {
+          const display = tr.querySelector('.set-tune-name-display');
+          if (display) names.push(display.textContent.trim());
+        });
+        const tunesSpan = row.querySelector('.sets-col-tunes');
+        if (tunesSpan) tunesSpan.textContent = names.join(', ');
+      }
+
+      if (typeof window.mpSetsTableRefreshAfterModal === 'function') window.mpSetsTableRefreshAfterModal();
+    }
+
+    function mpNotesIconCardHtml() {
+      return '<span class="tune-notes-icon-wrap tune-notes-icon--card" title="Has notes" aria-label="Has notes">' +
+        '<svg class="tune-notes-icon-svg" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+        '<path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>' +
+        '</svg></span>';
+    }
+
+    function mpSyncTuneCardNotesIndicatorFromModal() {
+      const form = tuneModalBody.querySelector('#tuneEditForm');
+      const ta = tuneModalBody.querySelector('.tune-panel-notes-input');
+      if (!form || !ta) return;
+      let tuneId;
+      try {
+        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
+        if (parts[0] !== 'edit' || !parts[1]) return;
+        tuneId = parts[1];
+      } catch (e) {
+        return;
+      }
+      const card = document.querySelector('.tune-card[data-tune-id="' + tuneId + '"]');
+      if (!card) return;
+      const has = !!ta.value.trim();
+      const titleText = card.querySelector('.card-title-text');
+      let icon = card.querySelector('.tune-notes-icon--card');
+      if (has && !icon && titleText) {
+        const holder = document.createElement('div');
+        holder.innerHTML = mpNotesIconCardHtml();
+        const node = holder.firstElementChild;
+        if (node) titleText.insertAdjacentElement('afterend', node);
+      } else if (!has && icon) {
+        icon.remove();
+      }
+    }
+
+    function mpClearTunePickerOutsideListener() {
+      if (tuneModalBackdrop && tuneModalBackdrop._mpTunePickerOutsideCleanup) {
+        tuneModalBackdrop._mpTunePickerOutsideCleanup();
+      }
+    }
+
+    function mpCloseTuneModal(options) {
+      if (!tuneModalBackdrop) return;
+      mpClearTunePickerOutsideListener();
+      const wasNewSet = tuneModalBody.querySelector('#setEditForm')?.dataset.newSet === '1';
+      tuneModalBackdrop.hidden = true;
+      tuneModalBackdrop.setAttribute('aria-hidden', 'true');
+      mpSyncTuneCardNotesIndicatorFromModal();
+      mpSyncTuneTableRowFromModal();
+      mpSyncSetsTableRowFromModal();
+      tuneModalBody.innerHTML = '';
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (wasNewSet && path === '/sets' && !options?.skipSetsReload) {
+        window.location.reload();
+      }
+    }
+
+    function mpInitTunePanelTabs(root) {
+      const tablist = root.querySelector('.tune-panel-tabs');
+      if (!tablist) return;
+      const tabs = [...tablist.querySelectorAll('.tune-panel-tab[data-tab]')];
+      if (!tabs.length) return;
+      function activate(name) {
+        tabs.forEach(tab => {
+          const sel = tab.dataset.tab === name;
+          tab.classList.toggle('tune-panel-tab--active', sel);
+          tab.setAttribute('aria-selected', String(sel));
+          tab.tabIndex = sel ? 0 : -1;
+        });
+        root.querySelectorAll('.tune-panel-tabpanel[data-panel]').forEach(panel => {
+          const show = panel.dataset.panel === name;
+          panel.classList.toggle('tune-panel-tabpanel--active', show);
+          panel.hidden = !show;
+        });
+        if (name === 'files') {
+          requestAnimationFrame(() => {
+            const filesPanel = root.querySelector('.tune-panel-tabpanel[data-panel="files"]');
+            if (!filesPanel || filesPanel.hidden) return;
+            filesPanel.querySelectorAll('audio, video').forEach((el) => {
+              try {
+                el.load();
+              } catch (e) {}
+            });
+          });
+        }
+      }
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => activate(tab.dataset.tab));
+      });
+    }
+
+    function mpBindTunePanel() {
+      if (!tuneModalBody) return;
+
+      mpClearTunePickerOutsideListener();
+      mpInitTunePanelTabs(tuneModalBody);
+
+      const nameField = tuneModalBody.querySelector('#tune_name_field');
+      const panelTitleText = tuneModalBody.querySelector('.tune-panel-modal-title-text');
+      function syncTunePanelHeading() {
+        if (panelTitleText && nameField)
+          panelTitleText.textContent = nameField.value.trim() || '—';
+      }
+      nameField?.addEventListener('input', syncTunePanelHeading);
+      nameField?.addEventListener('change', syncTunePanelHeading);
+
+      // ── Auto-save individual fields via /api/tune/<id> ──
+      const form   = tuneModalBody.querySelector('#tuneEditForm');
+      const tuneId = form ? new URL(form.action, location.href).pathname.split('/')[2] : null;
+
+      function flashInput(el, ok) {
+        el.classList.remove('flash-ok', 'flash-err');
+        el.classList.add(ok ? 'flash-ok' : 'flash-err');
+        setTimeout(() => el.classList.remove('flash-ok', 'flash-err'), 1200);
+      }
+
+      function saveField(fieldName, value, el) {
+        if (!tuneId) return Promise.resolve(false);
+        const payloadValue =
+          fieldName === 'practice_group' && Array.isArray(value)
+            ? value
+            : String(value);
+        return fetch('/api/tune/' + tuneId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: fieldName, value: payloadValue }),
+        })
+          .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false })))
+          .then(({ ok }) => {
+            if (el) flashInput(el, ok);
+            return ok;
+          })
+          .catch(() => {
+            if (el) flashInput(el, false);
+            return false;
+          });
+      }
+
+      function mpTunePanelLinkHref(raw) {
+        const s = String(raw || '').trim();
+        if (!s) return '';
+        if (/^https?:\/\//i.test(s)) return s;
+        return 'https://' + s;
+      }
+
+      function mpTunePanelFillLinkSlot(slot, raw) {
+        const s = String(raw || '').trim();
+        slot.replaceChildren();
+        if (!s) {
+          const em = document.createElement('span');
+          em.className = 'tune-panel-link-empty';
+          em.textContent = '—';
+          slot.appendChild(em);
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = mpTunePanelLinkHref(s);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'tune-link tune-panel-link-href';
+        a.textContent = s;
+        slot.appendChild(a);
+      }
+
+      tuneModalBody.querySelectorAll('.tune-panel-link-row').forEach(row => {
+        const field = row.dataset.linkField;
+        const view = row.querySelector('.tune-panel-link-view');
+        const edit = row.querySelector('.tune-panel-link-edit');
+        const input = row.querySelector('.tune-panel-link-input');
+        const slot = row.querySelector('.tune-panel-link-slot');
+        const btn = row.querySelector('.tune-panel-link-edit-btn');
+        if (!field || !tuneId || !view || !edit || !input || !slot || !btn) return;
+
+        function enterEdit() {
+          input.dataset.originalValue = input.value;
+          view.setAttribute('hidden', '');
+          edit.removeAttribute('hidden');
+          input.focus();
+        }
+
+        function leaveEdit() {
+          view.removeAttribute('hidden');
+          edit.setAttribute('hidden', '');
+        }
+
+        btn.addEventListener('click', () => enterEdit());
+
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            input.value = input.dataset.originalValue || '';
+            leaveEdit();
+          }
+        });
+
+        input.addEventListener('blur', () => {
+          if (edit.hasAttribute('hidden')) return;
+          const orig = (input.dataset.originalValue || '').trim();
+          const v = input.value.trim();
+          if (v === orig) {
+            leaveEdit();
+            return;
+          }
+          saveField(field, v, input).then(ok => {
+            if (ok) {
+              mpTunePanelFillLinkSlot(slot, v);
+              input.value = v;
+              input.dataset.originalValue = v;
+            } else {
+              input.value = orig;
+            }
+            leaveEdit();
+          });
+        });
+      });
+
+      (function bindTunePanelNotes() {
+        const wrap = tuneModalBody.querySelector('.tune-panel-notes-value');
+        if (!wrap || !tuneId) return;
+        const view = wrap.querySelector('.tune-panel-notes-view');
+        const edit = wrap.querySelector('.tune-panel-notes-edit');
+        const ta = wrap.querySelector('.tune-panel-notes-input');
+        const rendered = wrap.querySelector('.tune-panel-notes-rendered');
+        const btn = wrap.querySelector('.tune-panel-notes-edit-btn');
+        const doneBtn = wrap.querySelector('.tune-panel-notes-done-btn');
+        const notesIndicator = tuneModalBody.querySelector('#tunePanelNotesIndicator');
+        if (!view || !edit || !ta || !rendered || !btn) return;
+
+        let notesFinishPromise = null;
+
+        function setNotesIndicatorVisible(visible) {
+          if (!notesIndicator) return;
+          notesIndicator.hidden = !visible;
+        }
+
+        function mpRenderTuneNotesMarkdown(md) {
+          const s = String(md ?? '');
+          if (!s.trim()) {
+            rendered.replaceChildren();
+            const p = document.createElement('p');
+            p.className = 'tune-panel-notes-empty';
+            p.textContent = 'No notes yet.';
+            rendered.appendChild(p);
+            return;
+          }
+          if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+            function applyNotesHtml(html) {
+              const str = typeof html === 'string' ? html : String(html);
+              rendered.innerHTML = DOMPurify.sanitize(str, { USE_PROFILES: { html: true } });
+              rendered.querySelectorAll('a[href]').forEach(a => {
+                a.setAttribute('target', '_blank');
+                a.setAttribute('rel', 'noopener noreferrer');
+              });
+            }
+            try {
+              const out = marked.parse(s, { async: false });
+              if (out != null && typeof out.then === 'function') {
+                out.then(applyNotesHtml).catch(() => {
+                  rendered.replaceChildren();
+                  const pre = document.createElement('pre');
+                  pre.className = 'tune-panel-markdown-fallback';
+                  pre.textContent = s;
+                  rendered.appendChild(pre);
+                });
+              } else {
+                applyNotesHtml(out);
+              }
+            } catch (err) {
+              rendered.replaceChildren();
+              const pre = document.createElement('pre');
+              pre.className = 'tune-panel-markdown-fallback';
+              pre.textContent = s;
+              rendered.appendChild(pre);
+            }
+          } else {
+            rendered.replaceChildren();
+            const pre = document.createElement('pre');
+            pre.className = 'tune-panel-markdown-fallback';
+            pre.textContent = s;
+            rendered.appendChild(pre);
+          }
+        }
+
+        mpRenderTuneNotesMarkdown(ta.value);
+
+        function enterEdit() {
+          ta.dataset.originalValue = ta.value;
+          view.setAttribute('hidden', '');
+          edit.removeAttribute('hidden');
+          ta.focus();
+        }
+
+        function leaveEdit() {
+          view.removeAttribute('hidden');
+          edit.setAttribute('hidden', '');
+        }
+
+        btn.addEventListener('click', () => enterEdit());
+
+        function finishNotesEdit() {
+          if (edit.hasAttribute('hidden')) return Promise.resolve();
+          if (notesFinishPromise) return notesFinishPromise;
+          const orig = ta.dataset.originalValue ?? '';
+          const v = ta.value;
+          if (v === orig) {
+            leaveEdit();
+            return Promise.resolve();
+          }
+          notesFinishPromise = saveField('notes', v, ta)
+            .then(ok => {
+              if (ok) {
+                mpRenderTuneNotesMarkdown(v);
+                ta.dataset.originalValue = v;
+                setNotesIndicatorVisible(!!v.trim());
+              } else {
+                ta.value = orig;
+                mpRenderTuneNotesMarkdown(orig);
+              }
+              leaveEdit();
+              return ok;
+            })
+            .finally(() => {
+              notesFinishPromise = null;
+            });
+          return notesFinishPromise;
+        }
+
+        ta.addEventListener('keydown', e => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            if (notesFinishPromise) return;
+            ta.value = ta.dataset.originalValue || '';
+            leaveEdit();
+            mpRenderTuneNotesMarkdown(ta.value);
+          }
+        });
+
+        ta.addEventListener('blur', () => {
+          finishNotesEdit();
+        });
+
+        doneBtn?.addEventListener('click', e => {
+          e.preventDefault();
+          finishNotesEdit();
+        });
+      })();
+
+      // Suggest / pills must bind before blur autosave so values commit before save
+      if (window.mpSuggestInitScope) window.mpSuggestInitScope(tuneModalBody);
+      if (window.mpPracticeGroupsInitScope) window.mpPracticeGroupsInitScope(tuneModalBody);
+      if (window.mpEnhanceCustomSelectsIn) window.mpEnhanceCustomSelectsIn(tuneModalBody);
+
+      if (form) {
+        // Prevent accidental full-page submit
+        form.addEventListener('submit', e => e.preventDefault());
+
+        // Text / number inputs — save on blur
+        form.querySelectorAll('input[name]').forEach(input => {
+          if (input.type === 'hidden') return;
+          let original = input.value;
+          input.addEventListener('focus', () => { original = input.value; });
+          input.addEventListener('blur', () => {
+            if (input.value === original) return;
+            if (input.name === 'name' && !input.value.trim()) {
+              input.value = original;
+              flashInput(input, false);
+              return;
+            }
+            original = input.value;
+            saveField(input.name, input.value.trim(), input);
+          });
+        });
+
+        // Selects — save immediately on change
+        form.querySelectorAll('select[name]').forEach(sel => {
+          sel.addEventListener('change', () => saveField(sel.name, sel.value, sel));
+        });
+
+        form.querySelectorAll('textarea[name]').forEach(ta => {
+          let original = ta.value;
+          ta.addEventListener('focus', () => { original = ta.value; });
+          ta.addEventListener('blur', () => {
+            if (ta.value === original) return;
+            original = ta.value;
+            saveField(ta.name, ta.value, ta);
+          });
+        });
+      }
+
+      const pgRoot = tuneModalBody.querySelector('.mp-practice-groups');
+      const pgInput = pgRoot && pgRoot.querySelector('.mp-practice-groups-input');
+      if (pgRoot && tuneId) {
+        pgRoot.addEventListener('mp-practice-groups-change', (e) => {
+          const vals = e.detail && Array.isArray(e.detail.values) ? e.detail.values : [];
+          saveField('practice_group', vals, pgInput || pgRoot);
+        });
+      }
+
+      // ── Close button ──
+      tuneModalBody.querySelector('.tune-modal-cancel-btn')?.addEventListener('click', mpCloseTuneModal);
+
+      // ── Delete ──
+      const delForm    = tuneModalBody.querySelector('#tuneModalDeleteForm');
+      const delTrigger = tuneModalBody.querySelector('#tuneModalDeleteTrigger');
+      if (delTrigger && delForm) {
+        delTrigger.addEventListener('click', function () {
+          window.mpConfirmDeletion().then(ok => {
+            if (!ok) return;
+            const fd = new FormData(delForm);
+            fetch(delForm.action, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+            .then(r => r.json().then(j => ({ ok: r.ok, j })).catch(() => ({ ok: false, j: {} })))
+            .then(({ ok, j }) => {
+              if (ok && j.ok) { mpCloseTuneModal(); window.location.reload(); }
+              else alert(j.error || 'Could not delete.');
+            })
+            .catch(() => alert('Could not delete.'));
+          });
+        });
+      }
+    }
+
+    function mpReloadSetPanel() {
+      const url = tuneModalBody.querySelector('#setEditForm')?.dataset.setPanelUrl;
+      if (!url || !tuneModalBody) return Promise.resolve();
+      return fetch(url)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(html => {
+          tuneModalBody.innerHTML = html;
+          const title = tuneModalBody.querySelector('#setPanelTitle')?.textContent?.trim();
+          tuneModalBackdrop.querySelector('[role="dialog"]')?.setAttribute('aria-label', title || 'Set');
+          mpBindSetPanel();
+        })
+        .catch((err) => {
+          alert('Could not refresh set.');
+          return Promise.reject(err);
+        });
+    }
+
+    function mpBindSetTunesDnD() {
+      const table = tuneModalBody.querySelector('#setTunesTable');
+      const formEl = tuneModalBody.querySelector('#setEditForm');
+      if (!table || !formEl) return;
+      const reorderUrl = formEl.dataset.reorderUrl;
+      if (!reorderUrl) return;
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+
+      let dragRow = null;
+
+      function clearDropMarkers() {
+        tbody.querySelectorAll('tr[data-tune-id]').forEach(tr => {
+          tr.classList.remove('set-tune-drop-before', 'set-tune-drop-after');
+        });
+      }
+
+      function renumber() {
+        tbody.querySelectorAll('tr[data-tune-id]').forEach((tr, i) => {
+          const num = tr.querySelector('.set-tune-num');
+          if (num) num.textContent = String(i + 1);
+        });
+      }
+
+      function postOrder() {
+        const ids = [...tbody.querySelectorAll('tr[data-tune-id]')].map(tr => tr.dataset.tuneId);
+        fetch(reorderUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({ tune_ids: ids.map(id => parseInt(id, 10)) }),
+        })
+          .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+          .then(({ ok, j }) => {
+            if (!ok) alert(j.error || 'Could not save order.');
+          })
+          .catch(() => alert('Could not save order.'));
+      }
+
+      tbody.addEventListener('dragleave', e => {
+        const rel = e.relatedTarget;
+        if (!rel || !tbody.contains(rel)) clearDropMarkers();
+      });
+
+      tbody.querySelectorAll('tr[data-tune-id]').forEach(tr => {
+        tr.addEventListener('dragstart', e => {
+          if (e.target.closest('.btn-set-tune-remove') || e.target.closest('.set-tune-name-cell')) {
+            e.preventDefault();
+            return;
+          }
+          dragRow = tr;
+          tr.classList.add('set-tune-dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', tr.dataset.tuneId);
+        });
+        tr.addEventListener('dragend', () => {
+          clearDropMarkers();
+          tr.classList.remove('set-tune-dragging');
+          dragRow = null;
+        });
+        tr.addEventListener('dragover', e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (!dragRow) return;
+          clearDropMarkers();
+          if (dragRow === tr) return;
+          const rect = tr.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          tr.classList.add(before ? 'set-tune-drop-before' : 'set-tune-drop-after');
+        });
+        tr.addEventListener('drop', e => {
+          e.preventDefault();
+          clearDropMarkers();
+          if (!dragRow || dragRow === tr) return;
+          const rect = tr.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          if (before) tbody.insertBefore(dragRow, tr);
+          else tbody.insertBefore(dragRow, tr.nextSibling);
+          renumber();
+          postOrder();
+        });
+      });
+    }
+
+    function mpBindSetPanel() {
+      if (!tuneModalBody) return;
+
+      mpClearTunePickerOutsideListener();
+
+      const form = tuneModalBody.querySelector('#setEditForm');
+      if (form) {
+        form.addEventListener('submit', e => e.preventDefault());
+
+        const descInput = tuneModalBody.querySelector('#set_edit_description');
+        const typeInput = tuneModalBody.querySelector('#set_edit_type');
+
+        function flashSetField(el, ok) {
+          if (!el) return;
+          el.classList.remove('flash-ok', 'flash-err');
+          el.classList.add(ok ? 'flash-ok' : 'flash-err');
+          setTimeout(() => el.classList.remove('flash-ok', 'flash-err'), 1200);
+        }
+
+        function saveSetFields(elForFlash, onDone) {
+          const fd = new FormData();
+          fd.append('modal', '1');
+          fd.append('description', (descInput && descInput.value != null ? descInput.value : '').trim());
+          fd.append('type', typeInput ? typeInput.value.trim() : '');
+          fetch(form.action, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+            .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+            .then(({ ok, j }) => {
+              if (elForFlash) flashSetField(elForFlash, ok);
+              if (!ok) alert(j.error || 'Could not save.');
+              if (onDone) onDone(ok);
+            })
+            .catch(() => {
+              if (elForFlash) flashSetField(elForFlash, false);
+              alert('Could not save.');
+              if (onDone) onDone(false);
+            });
+        }
+
+        let descOriginal = descInput ? descInput.value : '';
+        descInput?.addEventListener('focus', () => { descOriginal = descInput.value; });
+        descInput?.addEventListener('blur', () => {
+          if (descInput.value === descOriginal) return;
+          const prev = descOriginal;
+          saveSetFields(descInput, ok => {
+            if (ok) descOriginal = descInput.value;
+            else descInput.value = prev;
+          });
+        });
+
+        let typeOriginal = typeInput ? typeInput.value : '';
+        typeInput?.addEventListener('focus', () => { typeOriginal = typeInput.value; });
+        typeInput?.addEventListener('blur', () => {
+          if ((typeInput.value || '').trim() === (typeOriginal || '').trim()) return;
+          const prev = typeOriginal;
+          saveSetFields(typeInput, ok => {
+            if (ok) typeOriginal = typeInput.value;
+            else typeInput.value = prev;
+          });
+        });
+      }
+
+      if (window.mpSuggestInitScope) window.mpSuggestInitScope(tuneModalBody);
+      if (window.mpEnhanceCustomSelectsIn) window.mpEnhanceCustomSelectsIn(tuneModalBody);
+
+      const addUrl = form?.dataset.addTuneUrl;
+      const placeholderRow = tuneModalBody.querySelector('.set-tune-placeholder-row');
+      const addLabel = tuneModalBody.querySelector('.set-tune-add-label');
+      const tunePicker = tuneModalBody.querySelector('#setTunePicker');
+      const tunePickerInput = tuneModalBody.querySelector('#setTunePickerInput');
+      const tunePickerList = tuneModalBody.querySelector('#setTunePickerList');
+      const tunePickerJson = tuneModalBody.querySelector('#setTunePickerJson');
+      const defaultSlot = tuneModalBody.querySelector('#setTunePickerDefaultSlot');
+
+      let tunePickerBundle = {};
+      try {
+        tunePickerBundle = JSON.parse(tunePickerJson?.textContent || '{}');
+      } catch (_) {
+        tunePickerBundle = {};
+      }
+      const addTunesList = Array.isArray(tunePickerBundle)
+        ? tunePickerBundle
+        : (tunePickerBundle.add || []);
+      const allTunesList = Array.isArray(tunePickerBundle)
+        ? []
+        : (tunePickerBundle.allTunes || []);
+      const setTuneIdSet = new Set(
+        (Array.isArray(tunePickerBundle) ? [] : (tunePickerBundle.setTuneIds || [])).map(x => Number(x))
+      );
+
+      let pickerMode = 'add';
+      let slotReplaceUrl = null;
+      let slotTuneId = null;
+
+      let tunePickerFiltered = [];
+      let tunePickerSelectedIdx = -1;
+
+      function tunesForPicker() {
+        if (pickerMode === 'slot' && slotTuneId != null) {
+          return allTunesList.filter(
+            t => Number(t.id) === Number(slotTuneId) || !setTuneIdSet.has(Number(t.id))
+          );
+        }
+        return addTunesList;
+      }
+
+      function filterPickerTunes(query) {
+        const q = query.trim().toLowerCase();
+        const base = tunesForPicker();
+        if (!q) return base.slice();
+        return base.filter(t => String(t.name).toLowerCase().includes(q));
+      }
+
+      function positionTunePickerMenu() {
+        if (!tunePickerList || tunePickerList.hidden || !tunePickerInput) return;
+        const rect = tunePickerInput.getBoundingClientRect();
+        const w = Math.max(rect.width, 220);
+        tunePickerList.style.position = 'fixed';
+        tunePickerList.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)) + 'px';
+        tunePickerList.style.top = (rect.bottom + 2) + 'px';
+        tunePickerList.style.width = w + 'px';
+        tunePickerList.style.zIndex = '400';
+      }
+
+      function tunePickerOnReposition() {
+        positionTunePickerMenu();
+      }
+
+      function syncTunePickerList() {
+        if (!tunePickerInput || !tunePickerList) return;
+        tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+        if (tunePickerFiltered.length === 0) {
+          tunePickerSelectedIdx = -1;
+        } else if (tunePickerSelectedIdx >= tunePickerFiltered.length) {
+          tunePickerSelectedIdx = tunePickerFiltered.length - 1;
+        }
+
+        tunePickerList.innerHTML = '';
+        tunePickerList.hidden = false;
+
+        if (tunePickerFiltered.length === 0) {
+          const li = document.createElement('li');
+          li.className = 'set-tune-picker-empty';
+          li.setAttribute('role', 'presentation');
+          li.textContent = tunesForPicker().length === 0
+            ? 'No tunes to add'
+            : 'No matching tunes';
+          tunePickerList.appendChild(li);
+        } else {
+          tunePickerFiltered.forEach((t, i) => {
+            const li = document.createElement('li');
+            li.className = 'set-tune-picker-item' + (i === tunePickerSelectedIdx ? ' is-active' : '');
+            li.setAttribute('role', 'option');
+            li.setAttribute('aria-selected', i === tunePickerSelectedIdx ? 'true' : 'false');
+            li.dataset.tuneId = String(t.id);
+            li.textContent = t.name;
+            li.addEventListener('mousedown', ev => ev.preventDefault());
+            li.addEventListener('click', () => addTuneFromPicker(t.id));
+            tunePickerList.appendChild(li);
+            if (i === tunePickerSelectedIdx) {
+              li.scrollIntoView({ block: 'nearest' });
+            }
+          });
+        }
+        positionTunePickerMenu();
+        tunePickerInput.setAttribute('aria-expanded', 'true');
+      }
+
+      function addTuneFromPicker(pickedTuneId) {
+        if (pickedTuneId == null) return;
+        if (pickerMode === 'slot') {
+          if (slotTuneId != null && Number(pickedTuneId) === Number(slotTuneId)) {
+            collapseInlineTunePicker();
+            return;
+          }
+          if (!slotReplaceUrl) return;
+          const fd = new FormData();
+          fd.append('modal', '1');
+          fd.append('new_tune_id', String(pickedTuneId));
+          fetch(slotReplaceUrl, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+            .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+            .then(({ ok, j }) => {
+              if (!ok) {
+                alert(j.error || 'Could not change tune.');
+                collapseInlineTunePicker();
+                return;
+              }
+              mpReloadSetPanel().catch(() => {});
+            })
+            .catch(() => {
+              alert('Could not change tune.');
+              collapseInlineTunePicker();
+            });
+          return;
+        }
+        if (!addUrl) return;
+        const fd = new FormData();
+        fd.append('modal', '1');
+        fd.append('tune_id', String(pickedTuneId));
+        fetch(addUrl, {
+          method: 'POST',
+          body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+          .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+          .then(({ ok, j }) => {
+            if (!ok) {
+              alert(j.error || 'Could not add tune.');
+              collapseInlineTunePicker();
+              return;
+            }
+            mpReloadSetPanel().catch(() => {});
+          })
+          .catch(() => {
+            alert('Could not add tune.');
+            collapseInlineTunePicker();
+          });
+      }
+
+      function collapseInlineTunePicker() {
+        if (!tunePicker || !addLabel) return;
+        tuneModalBody.removeEventListener('scroll', tunePickerOnReposition, true);
+        window.removeEventListener('resize', tunePickerOnReposition);
+        tuneModalBody.querySelectorAll('.set-tune-name-display').forEach(d => {
+          d.hidden = false;
+        });
+        if (defaultSlot && tunePicker.parentNode !== defaultSlot) defaultSlot.appendChild(tunePicker);
+        pickerMode = 'add';
+        slotReplaceUrl = null;
+        slotTuneId = null;
+        tunePicker.hidden = true;
+        tunePickerList.hidden = true;
+        tunePickerInput.value = '';
+        tunePickerInput.setAttribute('aria-expanded', 'false');
+        addLabel.hidden = false;
+      }
+
+      if (tunePicker && tuneModalBackdrop) {
+        const mpTunePickerOutsidePointerDown = (ev) => {
+          if (tunePicker.hidden) return;
+          if (tunePicker.contains(ev.target)) return;
+          collapseInlineTunePicker();
+        };
+        tuneModalBackdrop.addEventListener('pointerdown', mpTunePickerOutsidePointerDown, true);
+        tuneModalBackdrop._mpTunePickerOutsideCleanup = () => {
+          tuneModalBackdrop.removeEventListener('pointerdown', mpTunePickerOutsidePointerDown, true);
+          delete tuneModalBackdrop._mpTunePickerOutsideCleanup;
+        };
+      }
+
+      function expandInlineTunePicker(prefillText, targetSlot, mode, slotCtx) {
+        mode = mode || 'add';
+        if (!tunePicker || !addLabel || !tunePickerInput || !defaultSlot) return;
+        if (mode === 'add') {
+          if (placeholderRow && placeholderRow.dataset.noTunes === '1') return;
+          if (addTunesList.length === 0) return;
+        } else {
+          if (allTunesList.length === 0 || !slotCtx || !targetSlot) return;
+        }
+
+        tuneModalBody.removeEventListener('scroll', tunePickerOnReposition, true);
+        window.removeEventListener('resize', tunePickerOnReposition);
+
+        pickerMode = mode;
+        if (mode === 'slot') {
+          slotReplaceUrl = slotCtx.replaceUrl;
+          slotTuneId = slotCtx.slotTuneId;
+          const cell = targetSlot.closest('.set-tune-name-cell');
+          const disp = cell && cell.querySelector('.set-tune-name-display');
+          if (disp) disp.hidden = true;
+          addLabel.hidden = false;
+        } else {
+          slotReplaceUrl = null;
+          slotTuneId = null;
+          tuneModalBody.querySelectorAll('.set-tune-name-display').forEach(d => {
+            d.hidden = false;
+          });
+          addLabel.hidden = true;
+        }
+
+        const host = targetSlot || defaultSlot;
+        if (tunePicker.parentNode !== host) host.appendChild(tunePicker);
+
+        tunePicker.hidden = false;
+        const pre = prefillText != null ? String(prefillText).trim() : '';
+        tunePickerInput.value = pre;
+        tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+        const needle = tunePickerInput.value.trim().toLowerCase();
+        const exactIdx = tunePickerFiltered.findIndex(t => String(t.name).toLowerCase() === needle);
+        tunePickerSelectedIdx = exactIdx >= 0 ? exactIdx : -1;
+        syncTunePickerList();
+        tunePickerInput.focus();
+        tuneModalBody.addEventListener('scroll', tunePickerOnReposition, true);
+        window.addEventListener('resize', tunePickerOnReposition);
+      }
+
+      function openSetTunePickerFromNameCell(nameCell) {
+        if (!nameCell) return;
+        const span = nameCell.querySelector('.set-tune-name-display');
+        const slot = nameCell.querySelector('.set-tune-picker-slot');
+        const tr = nameCell.closest('tr[data-tune-id]');
+        if (!span || !slot || !tr) return;
+        const name = span.textContent.trim();
+        const replaceUrl = span.dataset.replaceUrl;
+        const tid = parseInt(tr.dataset.tuneId, 10);
+        if (!replaceUrl || !Number.isFinite(tid)) return;
+        const wasHidden = tunePicker.hidden;
+        expandInlineTunePicker(name, slot, 'slot', { replaceUrl, slotTuneId: tid });
+        if (wasHidden) nameCell.scrollIntoView({ block: 'nearest' });
+      }
+
+      tuneModalBody.querySelectorAll('.set-tune-name-opener').forEach(span => {
+        const nameCell = span.closest('.set-tune-name-cell');
+        if (!nameCell) return;
+        span.addEventListener('click', e => {
+          if (!span.closest('tr[data-tune-id]')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openSetTunePickerFromNameCell(nameCell);
+        });
+        span.addEventListener('keydown', e => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          if (!span.closest('tr[data-tune-id]')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openSetTunePickerFromNameCell(nameCell);
+        });
+      });
+
+      placeholderRow?.addEventListener('click', e => {
+        if (e.target.closest('.set-tune-picker')) return;
+        if (placeholderRow.dataset.noTunes === '1') return;
+        if (addTunesList.length === 0) return;
+        if (!tunePicker.hidden && pickerMode === 'add' && tunePicker.parentNode === defaultSlot) {
+          collapseInlineTunePicker();
+          return;
+        }
+        if (!tunePicker.hidden) collapseInlineTunePicker();
+        expandInlineTunePicker(undefined, defaultSlot, 'add');
+      });
+
+      tunePickerInput?.addEventListener('input', () => {
+        tunePickerSelectedIdx = -1;
+        syncTunePickerList();
+      });
+
+      tunePickerInput?.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          collapseInlineTunePicker();
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+          if (!tunePickerFiltered.length) return;
+          tunePickerSelectedIdx = Math.min(tunePickerFiltered.length - 1, tunePickerSelectedIdx + 1);
+          syncTunePickerList();
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+          if (!tunePickerFiltered.length) return;
+          tunePickerSelectedIdx = tunePickerSelectedIdx <= 0 ? -1 : tunePickerSelectedIdx - 1;
+          syncTunePickerList();
+          return;
+        }
+        if (e.key === 'Tab' && !e.shiftKey) {
+          tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+          if (
+            tunePickerFiltered.length &&
+            tunePickerSelectedIdx >= 0 &&
+            tunePickerSelectedIdx < tunePickerFiltered.length
+          ) {
+            e.preventDefault();
+            addTuneFromPicker(tunePickerFiltered[tunePickerSelectedIdx].id);
+          } else {
+            collapseInlineTunePicker();
+          }
+          return;
+        }
+        if (e.key === 'Enter') {
+          tunePickerFiltered = filterPickerTunes(tunePickerInput.value);
+          if (
+            tunePickerFiltered.length &&
+            tunePickerSelectedIdx >= 0 &&
+            tunePickerSelectedIdx < tunePickerFiltered.length
+          ) {
+            e.preventDefault();
+            addTuneFromPicker(tunePickerFiltered[tunePickerSelectedIdx].id);
+          }
+        }
+      });
+
+      tuneModalBody.querySelectorAll('.btn-set-tune-remove').forEach(btn => {
+        btn.addEventListener('mousedown', e => e.stopPropagation());
+        btn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const url = btn.dataset.removeUrl;
+          if (!url) return;
+          window.mpConfirmDeletion().then(ok => {
+            if (!ok) return;
+            const fd = new FormData();
+            fd.append('modal', '1');
+            fd.append('confirm_delete', '1');
+            fetch(url, {
+              method: 'POST',
+              body: fd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+              .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+              .then(({ ok, j }) => {
+                if (!ok) {
+                  alert(j.error || 'Could not remove tune from set.');
+                  return;
+                }
+                mpReloadSetPanel().catch(() => {});
+              })
+              .catch(() => alert('Could not remove tune from set.'));
+          });
+        });
+      });
+
+      tuneModalBody.querySelector('.tune-modal-cancel-btn')?.addEventListener('click', mpCloseTuneModal);
+
+      const delForm = tuneModalBody.querySelector('#setModalDeleteForm');
+      const delTrigger = tuneModalBody.querySelector('#setModalDeleteTrigger');
+      if (delTrigger && delForm) {
+        delTrigger.addEventListener('click', function () {
+          window.mpConfirmDeletion().then(ok => {
+            if (!ok) return;
+            const fd = new FormData(delForm);
+            fetch(delForm.action, {
+              method: 'POST',
+              body: fd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+              .then(r => r.json().then(j => ({ ok: r.ok, j })).catch(() => ({ ok: false, j: {} })))
+              .then(({ ok, j }) => {
+                if (ok && j.ok) {
+                  mpCloseTuneModal({ skipSetsReload: true });
+                  window.location.reload();
+                } else alert(j.error || 'Could not delete.');
+              })
+              .catch(() => alert('Could not delete.'));
+          });
+        });
+      }
+
+      mpBindSetTunesDnD();
+    }
+
+
+    window.mpCloseTuneModal = mpCloseTuneModal;
+    window.mpOpenTuneModal = function (url) {
+      if (!tuneModalBackdrop || !tuneModalBody) return;
+      tuneModalBody.innerHTML = '<p class="tune-modal-loading">Loading…</p>';
+      tuneModalBackdrop.hidden = false;
+      tuneModalBackdrop.setAttribute('aria-hidden', 'false');
+
+      fetch(url)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(html => {
+          tuneModalBody.innerHTML = html;
+          tuneModalBackdrop.querySelector('[role="dialog"]')?.setAttribute('aria-label', 'Edit tune');
+          mpBindTunePanel();
+          tuneModalBody.querySelector('#tune_name_field')?.focus();
+        })
+        .catch(() => {
+          tuneModalBody.innerHTML = '<p class="tune-modal-error">Could not load tune.</p>';
+        });
+    };
+
+    window.mpOpenSetModal = function (url) {
+      if (!tuneModalBackdrop || !tuneModalBody) return;
+      tuneModalBody.innerHTML = '<p class="tune-modal-loading">Loading…</p>';
+      tuneModalBackdrop.hidden = false;
+      tuneModalBackdrop.setAttribute('aria-hidden', 'false');
+
+      fetch(url)
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(html => {
+          tuneModalBody.innerHTML = html;
+          const title = tuneModalBody.querySelector('#setPanelTitle')?.textContent?.trim();
+          tuneModalBackdrop.querySelector('[role="dialog"]')?.setAttribute('aria-label', title || 'Set');
+          mpBindSetPanel();
+          tuneModalBody.querySelector('#set_edit_description')?.focus();
+        })
+        .catch(() => {
+          tuneModalBody.innerHTML = '<p class="tune-modal-error">Could not load set.</p>';
+        });
+    };
+
+    tuneModalBackdrop?.addEventListener('click', (e) => {
+      if (e.target === tuneModalBackdrop) mpCloseTuneModal();
+    });
+    tuneModalCloseBtn?.addEventListener('click', mpCloseTuneModal);
+
+    const mpCreateSetDraftUrl = {{ url_for('create_set_draft') | tojson }};
+
+    function mpOpenCreateSetModal() {
+      fetch(mpCreateSetDraftUrl, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false, j: {} })))
+        .then(({ ok, j }) => {
+          if (!ok) {
+            alert(j.error || 'Could not start a new set.');
+            return;
+          }
+          if (j.panel_url && window.mpOpenSetModal) {
+            window.mpOpenSetModal(j.panel_url);
+          }
+        })
+        .catch(() => alert('Could not start a new set.'));
+    }
+
+    window.mpOpenCreateSetModal = mpOpenCreateSetModal;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (mpConfirmBackdrop && !mpConfirmBackdrop.hidden) {
+        mpCloseConfirmDialog(false);
+        return;
+      }
+      if (tuneModalBackdrop && !tuneModalBackdrop.hidden) {
+        mpCloseTuneModal();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const card = e.target.closest('.tune-card[data-panel-url]');
+      if (!card) return;
+      if (e.target.closest('.practiced-btn')) return;
+      e.preventDefault();
+      window.mpOpenTuneModal(card.dataset.panelUrl);
+    });
+  </script>
+</body>
+</html>

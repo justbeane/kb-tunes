@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% from "_sort_icons.html" import sortable_heading %}
+{% block title %}{% if practice_group_label %}Table – {{ practice_group_label }} – {% else %}Table – {% endif %}Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="page-header page-header--table">
+  <div class="table-toolbar-left">
+    <form method="get" action="{{ url_for('table_view') }}" class="table-type-filter-form">
+      {% if practice_group_label %}
+      <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
+      {% endif %}
+      <select name="tune_type" class="filter-select" id="tableTypeSelect" aria-label="Type">
+        <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
+        {% for tt in types_for_filter %}
+          <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+        {% endfor %}
+      </select>
+      <select name="psr" class="filter-select" id="tablePsrSelect" aria-label="Practice since reset">
+        <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
+        <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
+        <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
+      </select>
+    </form>
+    {% if practice_group_label %}
+    <span class="table-toolbar-group-label" title="Filtered by practice group">{{ practice_group_label }}</span>
+    {% endif %}
+    <span class="tune-count" id="visibleCount">{{ tunes|length }}</span>
+  </div>
+  <div class="table-controls table-controls--right">
+    <input type="search" id="tableFilter" class="search-input" placeholder="Filter rows…" autocomplete="off" />
+    <button class="btn btn-ghost btn-secondary" id="clearFilter" style="display:none">Clear</button>
+    <a href="{{ url_for('add_tune') }}" class="btn btn-primary">+ Add</a>
+  </div>
+</div>
+
+{% if tunes %}
+<div class="table-wrap">
+  <div class="table-wrap__inner">
+  <table class="tune-table table-layout-modern table-filter-all" id="tuneTable">
+    <thead>
+      <tr>
+        <th class="sortable" data-col="0">{{ sortable_heading('Name') }}</th>
+        <th class="sortable" data-col="1">{{ sortable_heading('Type') }}</th>
+        <th class="sortable" data-col="2">{{ sortable_heading('Group') }}</th>
+        <th class="sortable" data-col="3">{{ sortable_heading('Key') }}</th>
+        <th class="sortable" data-col="4">{{ sortable_heading('Composer') }}</th>
+        <th class="sortable col-readonly" data-col="5">{{ sortable_heading('Plays') }}</th>
+        <th class="sortable col-readonly" data-col="6">{{ sortable_heading('Days') }}</th>
+        <th class="col-tune-practice" scope="col"><span class="table-sr-only">Practice tune</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tune in tunes %}
+      <tr data-id="{{ tune.id }}" data-last-practiced="{{ tune.last_practiced or '' }}">
+        <td class="col-name"
+            data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}"
+            title="Open tune details (double-click name to edit here)">
+          <div class="cell-edit" data-field="name" contenteditable="true">{{ tune.name }}</div>
+        </td>
+        <td>
+          <div class="mp-suggest mp-suggest--cell" data-suggest-key="tune_type">
+            <input class="mp-suggest-input cell-suggest-input" type="text" data-field="tune_type"
+                   value="{{ tune.tune_type or '' }}" autocomplete="off"
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" />
+            <ul class="mp-suggest-menu" role="listbox" hidden></ul>
+          </div>
+        </td>
+        <td class="col-practice-groups">
+          <div class="practice-groups-table-display" role="list" aria-label="Practice groups">
+            {% set _pgs = tune.practice_group|practice_groups_selected %}
+            {% if _pgs %}
+              {% for g in _pgs %}
+              <span class="practice-group-table-pill" role="listitem">{{ g }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="practice-groups-table-empty" aria-hidden="true">—</span>
+            {% endif %}
+          </div>
+        </td>
+        <td>
+          <div class="mp-suggest mp-suggest--cell" data-suggest-key="key">
+            <input class="mp-suggest-input cell-suggest-input" type="text" data-field="key"
+                   value="{{ tune.key or '' }}" autocomplete="off"
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" />
+            <ul class="mp-suggest-menu" role="listbox" hidden></ul>
+          </div>
+        </td>
+        <td><div class="cell-edit" data-field="composer" contenteditable="true">{{ tune.composer or '' }}</div></td>
+        <td class="cell-readonly tune-table-plays">{{ tune.practice_count }}</td>
+        <td class="cell-readonly tune-table-days">{% if tune.days_since_last is not none %}{{ tune.days_since_last }}{% endif %}</td>
+        <td class="col-tune-practice">
+          <div class="sets-col-practice-inner">
+            <button type="button" class="btn btn-xs btn-practiced practiced-btn"
+                    data-url="{{ url_for('practiced_tune', tune_id=tune.id) }}"
+                    title="Mark as practiced today"
+                    aria-label="Mark as practiced today: {{ tune.name|e }}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              Practiced
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <script type="application/json" id="mpTableSuggestPayload">{{ {'tune_type': tune_type_suggestions, 'key': key_suggestions}|tojson }}</script>
+  <div class="table-empty-filter" id="noResults" style="display:none">
+    No rows match your filter.
+  </div>
+</div>
+
+{% else %}
+<div class="empty-state">
+  {% if practice_group_label %}
+  <p>No tunes in this practice group{% if tune_type %} with the selected type{% endif %}{% if psr_filter != 'all' %} for this practice-since-reset filter{% endif %}.</p>
+  <p><a href="{{ url_for('table_view') }}">View full table</a> · <a href="{{ url_for('add_tune') }}">+ Add tune</a></p>
+  {% else %}
+  <p>No tunes yet. Add your first one!</p>
+  <a href="{{ url_for('add_tune') }}" class="btn btn-primary">+ Add</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+  function practiceGroupCellValue(wrap) {
+    const pills = wrap.querySelectorAll('.practice-group-table-pill');
+    return Array.from(pills)
+      .map(el => el.textContent.trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  function saveField(tuneId, field, value) {
+    const row = document.querySelector(`tr[data-id="${tuneId}"]`);
+    fetch(`/api/tune/${tuneId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value })
+    })
+    .then(r => r.json())
+    .then(data => flashCell(row.querySelector(`[data-field="${field}"]`), data.ok ? 'ok' : 'err'))
+    .catch(() => flashCell(row.querySelector(`[data-field="${field}"]`), 'err'));
+  }
+
+  function flashCell(el, state) {
+    if (!el) return;
+    el.classList.remove('flash-ok', 'flash-err');
+    el.classList.add(state === 'ok' ? 'flash-ok' : 'flash-err');
+    setTimeout(() => el.classList.remove('flash-ok', 'flash-err'), 1200);
+  }
+
+  document.querySelectorAll('.cell-edit').forEach(cell => {
+    let original = cell.textContent.trim();
+    cell.addEventListener('focus', () => { original = cell.textContent.trim(); });
+    cell.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); cell.blur(); }
+      if (e.key === 'Escape') { cell.textContent = original; cell.blur(); }
+    });
+    cell.addEventListener('blur', () => {
+      const value = cell.textContent.trim();
+      if (value === original) return;
+      const tuneId = cell.closest('tr').dataset.id;
+      const field  = cell.dataset.field;
+      if (field === 'name' && !value) { cell.textContent = original; flashCell(cell, 'err'); return; }
+      saveField(tuneId, field, value);
+      original = value;
+    });
+  });
+
+  document.querySelectorAll('.cell-select').forEach(sel => {
+    sel.addEventListener('change', () => saveField(sel.closest('tr').dataset.id, sel.dataset.field, sel.value));
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    let payload = {};
+    try {
+      payload = JSON.parse(document.getElementById('mpTableSuggestPayload')?.textContent || '{}');
+    } catch (e) {}
+    const wrap = document.querySelector('#tuneTable')?.closest('.table-wrap');
+    if (window.mpSuggestInitScope && wrap) window.mpSuggestInitScope(wrap, payload);
+  });
+
+  document.querySelectorAll('.cell-suggest-input').forEach(inp => {
+    let original = inp.value;
+    inp.addEventListener('focus', () => { original = inp.value; });
+    inp.addEventListener('blur', () => {
+      const value = inp.value.trim();
+      if (value === original) return;
+      const tuneId = inp.closest('tr').dataset.id;
+      const field = inp.dataset.field;
+      saveField(tuneId, field, value);
+      original = value;
+    });
+  });
+
+  const tbody    = document.querySelector('#tuneTable tbody');
+  const headers  = document.querySelectorAll('th.sortable');
+  let sortCol    = null;
+  let sortAsc    = true;
+
+  function setThSortIcon(th, state) {
+    const wrap = th.querySelector('.sort-icon');
+    if (!wrap || !window.mpSortIcons) return;
+    if (state !== 'asc' && state !== 'desc') {
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.innerHTML = state === 'asc' ? window.mpSortIcons.asc : window.mpSortIcons.desc;
+  }
+
+  function stripArticle(s) {
+    return s.replace(/^(the|a)\s+/i, '');
+  }
+
+  function getCellText(row, colIdx) {
+    const td = row.cells[colIdx];
+    const pgWrap = td.querySelector('.practice-groups-table-display');
+    if (pgWrap) return practiceGroupCellValue(pgWrap).toLowerCase();
+    const edit   = td.querySelector('.cell-edit');
+    const select = td.querySelector('.cell-select');
+    const sin    = td.querySelector('.cell-suggest-input');
+    const date   = td.querySelector('.cell-date');
+    let text;
+    if (edit)   text = edit.textContent.trim().toLowerCase();
+    else if (sin) text = sin.value.trim().toLowerCase();
+    else if (select) text = select.options[select.selectedIndex].text.replace('—','').trim().toLowerCase();
+    else if (date)   return date.value || '';
+    else text = td.textContent.trim().toLowerCase();
+    return colIdx === 0 ? stripArticle(text) : text;
+  }
+
+  /** Plays (5) / Days (6): numeric; Days empty → Infinity. */
+  function getNumericSortValue(row, colIdx) {
+    const td = row.cells[colIdx];
+    const raw = td.textContent.trim();
+    if (colIdx === 6 && !raw.trim()) return Infinity;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function sortTable(colIdx) {
+    if (sortCol === colIdx) {
+      sortAsc = !sortAsc;
+    } else {
+      sortCol = colIdx;
+      sortAsc = true;
+    }
+
+    headers.forEach(th => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      setThSortIcon(th, null);
+    });
+    const activeHeader = document.querySelector(`th[data-col="${colIdx}"]`);
+    activeHeader.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+    setThSortIcon(activeHeader, sortAsc ? 'asc' : 'desc');
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const numericCol = colIdx === 5 || colIdx === 6;
+    rows.sort((a, b) => {
+      if (numericCol) {
+        const av = getNumericSortValue(a, colIdx);
+        const bv = getNumericSortValue(b, colIdx);
+        if (av !== bv) return sortAsc ? av - bv : bv - av;
+        return 0;
+      }
+      const av = getCellText(a, colIdx);
+      const bv = getCellText(b, colIdx);
+      if (av < bv) return sortAsc ? -1 : 1;
+      if (av > bv) return sortAsc ?  1 : -1;
+      return 0;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    updateStripes();
+  }
+
+  headers.forEach(th => th.addEventListener('click', () => sortTable(+th.dataset.col)));
+
+  document.querySelectorAll('#tuneTable tbody td.col-name').forEach(td => {
+    let clickTimer = null;
+    td.addEventListener('mousedown', e => {
+      const edit = td.querySelector('.cell-edit[data-field="name"]');
+      if (!edit || !e.target.closest('.cell-edit[data-field="name"]')) return;
+      if (e.detail === 1) e.preventDefault();
+    });
+    td.addEventListener('click', e => {
+      if (e.target.closest('.practiced-btn')) return;
+      const edit = td.querySelector('.cell-edit[data-field="name"]');
+      if (!edit) return;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        const url = td.dataset.panelUrl;
+        if (url && window.mpOpenTuneModal) window.mpOpenTuneModal(url);
+      }, 280);
+    });
+    td.addEventListener('dblclick', e => {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      e.preventDefault();
+      const edit = td.querySelector('.cell-edit[data-field="name"]');
+      if (!edit) return;
+      edit.focus();
+      const range = document.createRange();
+      range.selectNodeContents(edit);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+  });
+
+  document.querySelectorAll('#tuneTable .practiced-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      fetch(btn.dataset.url, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) return;
+          btn.classList.add('practiced-flash');
+          setTimeout(() => btn.classList.remove('practiced-flash'), 900);
+          const row = btn.closest('tr');
+          if (row && data.date) row.setAttribute('data-last-practiced', data.date);
+          window.mpSyncPlayedTodayHighlight?.();
+          const playsEl = row?.querySelector('.tune-table-plays');
+          const daysEl = row?.querySelector('.tune-table-days');
+          if (playsEl) {
+            const n = parseInt(playsEl.textContent.trim(), 10) || 0;
+            playsEl.textContent = String(n + 1);
+          }
+          if (daysEl) daysEl.textContent = '0';
+        });
+    });
+  });
+
+  const filterInput  = document.getElementById('tableFilter');
+  const clearBtn     = document.getElementById('clearFilter');
+  const countEl      = document.getElementById('visibleCount');
+  const noResults    = document.getElementById('noResults');
+
+  function applyFilter() {
+    const term = filterInput.value.trim().toLowerCase();
+    clearBtn.style.display = term ? '' : 'none';
+
+    let visible = 0;
+    tbody.querySelectorAll('tr').forEach(row => {
+      const text = Array.from(row.cells)
+        .filter(td => !td.classList.contains('col-tune-practice'))
+        .map(td => {
+          const pg = td.querySelector('.practice-groups-table-display');
+          if (pg) return practiceGroupCellValue(pg);
+          const e = td.querySelector('.cell-edit, .cell-select, .cell-suggest-input');
+          if (!e) return td.textContent;
+          if (e.classList.contains('cell-edit'))   return e.textContent;
+          if (e.classList.contains('cell-suggest-input')) return e.value;
+          if (e.classList.contains('cell-select')) return e.options[e.selectedIndex]?.text || '';
+          return '';
+        })
+        .join(' ')
+        .toLowerCase();
+
+      const show = !term || text.includes(term);
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    countEl.textContent = visible;
+    noResults.style.display = visible === 0 ? '' : 'none';
+    updateStripes();
+  }
+
+  filterInput.addEventListener('input', applyFilter);
+  clearBtn.addEventListener('click', () => { filterInput.value = ''; applyFilter(); filterInput.focus(); });
+
+  function updateStripes() {
+    let idx = 0;
+    tbody.querySelectorAll('tr').forEach(row => {
+      if (row.style.display === 'none') return;
+      row.classList.toggle('row-even', idx % 2 === 1);
+      idx++;
+    });
+    window.mpSyncPlayedTodayHighlight?.();
+  }
+
+  window.mpTableRefreshAfterModal = function () {
+    if (typeof applyFilter === 'function') applyFilter();
+  };
+
+  if (tbody) updateStripes();
+</script>
+
+<script>
+  (function () {
+    const typeSel = document.getElementById('tableTypeSelect');
+    typeSel?.addEventListener('change', () => {
+      localStorage.setItem('mp-filter-tune-type', typeSel.value);
+      typeSel.form?.submit();
+    });
+
+    const psrSel = document.getElementById('tablePsrSelect');
+    psrSel?.addEventListener('change', () => {
+      localStorage.setItem('mp-filter-psr', psrSel.value || 'all');
+      psrSel.form?.submit();
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    let changed = false;
+    if (!params.has('tune_type')) {
+      const tt = localStorage.getItem('mp-filter-tune-type') || '';
+      if (tt) {
+        params.set('tune_type', tt);
+        changed = true;
+      }
+    }
+    if (!params.has('psr')) {
+      const psr = localStorage.getItem('mp-filter-psr') || 'all';
+      if (psr && psr !== 'all') {
+        params.set('psr', psr);
+        changed = true;
+      }
+    }
+    if (changed) {
+      window.location.replace(window.location.pathname + '?' + params.toString());
+    }
+  })();
+</script>
+{% endblock %}

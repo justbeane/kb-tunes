@@ -1,0 +1,107 @@
+{# Fragment for View Set / Add New Set modal — no {% extends %} #}
+<h2 class="set-modal-title" id="setPanelTitle">{{ panel_title }}</h2>
+<form method="post" class="set-panel-form" id="setEditForm" action="{{ url_for('edit_set', set_id=set_record.id) }}"
+      data-set-panel-url="{{ panel_url }}"
+      data-new-set="{{ '1' if is_new else '' }}"
+      data-add-tune-url="{{ url_for('add_tune_to_set', set_id=set_record.id) }}"
+      data-reorder-url="{{ url_for('reorder_set_tunes', set_id=set_record.id) }}">
+  <input type="hidden" name="modal" value="1" />
+  <div class="form-group set-panel-form-group">
+    <label class="set-panel-section-label" for="set_edit_description">Description</label>
+    <input type="text" id="set_edit_description" name="description" value="{{ set_record.description or '' }}"
+           placeholder="Optional" autocomplete="off" />
+  </div>
+  <div class="form-group set-panel-form-group">
+    <label class="set-panel-section-label" for="set_edit_type">Type</label>
+    <div class="mp-suggest">
+      <input type="text" id="set_edit_type" name="type" class="mp-suggest-input"
+             value="{{ set_record.type or '' }}"
+             placeholder="Optional — types from your library below"
+             autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+             aria-controls="set_edit_type_menu" />
+      <ul class="mp-suggest-menu" id="set_edit_type_menu" role="listbox" hidden></ul>
+      <script type="application/json" class="mp-suggest-data">{{ set_type_suggestions|tojson }}</script>
+    </div>
+  </div>
+</form>
+
+<div class="set-panel-tunes">
+  <h3 class="set-panel-section-label">Tunes</h3>
+  <div class="set-tunes-table-wrap">
+    <table class="tune-table set-tunes-table" id="setTunesTable">
+      <thead>
+        <tr>
+          <th class="set-tune-col-num" scope="col">#</th>
+          <th scope="col">Name</th>
+          <th scope="col">Type</th>
+          <th scope="col">Key</th>
+          <th class="set-tune-col-remove" scope="col"><span class="table-sr-only">Remove from set</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tune in set_tunes %}
+        <tr data-tune-id="{{ tune.id }}" class="set-tune-row" draggable="true">
+          <td class="set-tune-num">{{ loop.index }}</td>
+          <td class="set-tune-name set-tune-name-cell">
+            <span class="set-tune-name-display set-tune-name-opener" role="button" tabindex="0"
+                  title="Change this tune — search here"
+                  data-replace-url="{{ url_for('replace_tune_in_set', set_id=set_record.id, tune_id=tune.id) }}">{{ tune.name }}</span>
+            <div class="set-tune-picker-slot"></div>
+          </td>
+          <td class="set-tune-type">{% if tune.tune_type %}<span class="badge badge-type">{{ tune.tune_type }}</span>{% else %}—{% endif %}</td>
+          <td class="set-tune-key">{% if tune.key %}<span class="badge badge-key">{{ tune.key }}</span>{% else %}—{% endif %}</td>
+          <td class="set-tune-col-remove">
+            <button type="button" class="btn-set-tune-remove"
+                    data-remove-url="{{ url_for('remove_tune_from_set', set_id=set_record.id, tune_id=tune.id) }}"
+                    data-tune-name="{{ tune.name|e }}"
+                    title="Remove from set"
+                    aria-label="Remove {{ tune.name|e }} from set (tune stays in library)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>
+              </svg>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="set-tune-placeholder-row"{% if not tune_picker_add_options %} data-no-tunes="1" title="No tunes available to add. Add tunes in your library first."{% endif %}>
+          <td class="set-tune-placeholder-num">+</td>
+          <td class="set-tune-placeholder-name">
+            <span class="set-tune-add-label"><em>Add Tune</em></span>
+            <div class="set-tune-picker-slot set-tune-picker-slot--default" id="setTunePickerDefaultSlot">
+              <div class="set-tune-picker" id="setTunePicker" hidden>
+                <input type="text" id="setTunePickerInput" class="set-tune-picker-input"
+                       autocomplete="off" spellcheck="false"
+                       aria-label="Search tunes"
+                       aria-autocomplete="list" aria-controls="setTunePickerList" aria-expanded="false"
+                       placeholder="Type to filter…" />
+                <ul class="set-tune-picker-menu" id="setTunePickerList" role="listbox" hidden></ul>
+              </div>
+            </div>
+            <script type="application/json" id="setTunePickerJson">{{ tune_picker_bundle | tojson }}</script>
+          </td>
+          <td class="set-tune-type">—</td>
+          <td class="set-tune-key">—</td>
+          <td class="set-tune-col-remove set-tune-col-remove--empty" aria-hidden="true"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if set_tunes %}
+  <p class="set-tunes-dnd-hint">Drag rows to reorder.</p>
+  {% endif %}
+</div>
+
+<div class="tune-modal-actions">
+  <div class="form-actions-left">
+    <button type="button" id="setModalDeleteTrigger" class="btn btn-danger">Delete</button>
+  </div>
+  <div class="form-actions-right">
+    <button type="button" class="btn btn-secondary tune-modal-cancel-btn">Close</button>
+  </div>
+</div>
+<form method="post" action="{{ url_for('delete_set', set_id=set_record.id) }}"
+      id="setModalDeleteForm" data-set-label="{{ (set_record.description or 'this set')|e }}" style="display:none">
+  <input type="hidden" name="modal" value="1" />
+  <input type="hidden" name="confirm_delete" value="1" />
+</form>

@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% from "_sort_icons.html" import sortable_heading %}
+{% block title %}Sets – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="page-header page-header--table page-header--sets">
+  <div class="table-toolbar-left">
+    <h2>Sets</h2>
+    <form method="get" action="{{ url_for('sets_view') }}" class="table-type-filter-form">
+      <label class="table-sr-only" for="setsTypeFilter">Filter by type</label>
+      <select name="set_type" class="filter-select" id="setsTypeFilter" aria-label="Set type"
+              onchange="this.form.submit()">
+        <option value="" {% if not set_type_filter %}selected{% endif %}>All Types</option>
+        {% for tt in set_types_for_filter %}
+          <option value="{{ tt }}" {% if set_type_filter == tt %}selected{% endif %}>{{ tt }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <span class="tune-count" id="setsVisibleCount">{{ sets|length }}</span>
+  </div>
+  <div class="table-controls table-controls--right">
+    <input type="search" id="setsTableFilter" class="search-input" placeholder="Filter rows…" autocomplete="off" />
+    <button type="button" class="btn btn-ghost btn-secondary" id="setsClearFilter" style="display:none">Clear</button>
+    <button type="button" class="btn btn-primary btn-sm" id="openCreateSetModalMain">+ Add</button>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages if category != 'success' %}
+    {% if loop.first %}
+    <div class="flash-messages" role="alert">
+    {% endif %}
+      <p class="flash flash-{{ category }}">{{ message }}</p>
+    {% if loop.last %}
+    </div>
+    {% endif %}
+  {% endfor %}
+{% endwith %}
+
+{% if sets %}
+<div class="table-wrap">
+  <div class="table-wrap__inner">
+  <table class="tune-table table-layout-modern" id="setsTable">
+    <caption class="sets-table-caption">sets</caption>
+    <thead class="sets-table-head-desktop">
+      <tr>
+        <th class="sortable" data-col="0">{{ sortable_heading('Description') }}</th>
+        <th class="sortable" data-col="1">{{ sortable_heading('Tunes') }}</th>
+        <th class="sortable" data-col="2">{{ sortable_heading('Type') }}</th>
+        <th class="sortable" data-col="3">{{ sortable_heading('Last') }}</th>
+        <th class="col-set-practice" scope="col"><span class="table-sr-only">Practice set</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sets %}
+      <tr data-id="{{ s.id }}" data-set-panel-url="{{ url_for('set_panel', set_id=s.id) }}" class="sets-table-row">
+        <td class="sets-unified-cell" colspan="5">
+          <div class="sets-row-inner">
+            <div class="sets-cell-desc-wrap" data-sets-col="0">
+              <span class="sets-cell-desc sets-cell-open-set" role="link" tabindex="0"
+                    data-set-panel-url="{{ url_for('set_panel', set_id=s.id) }}"
+                    title="View Set">{{ s.description if s.description else '—' }}</span>
+            </div>
+            <div class="sets-col-tunes-cell" data-sets-col="1">
+              <span class="sets-col-tunes">{% if s.tunes_names %}{{ s.tunes_names }}{% endif %}</span>
+            </div>
+            <div class="sets-col-type{% if not s.type %} sets-col-type--empty{% endif %}" data-sets-col="2">
+              {% if s.type %}<span class="badge badge-type">{{ s.type }}</span>{% else %}<span class="sets-cell-empty">—</span>{% endif %}
+            </div>
+            <span class="sets-col-last-practiced" data-sets-col="3">{% if s.last_practiced %}{{ s.last_practiced }}{% endif %}</span>
+            <div class="sets-cell-practice-wrap col-set-practice">
+              <div class="sets-col-practice-inner">
+                <button type="button" class="btn btn-xs btn-practiced set-practiced-btn"
+                        data-practice-url="{{ url_for('record_set_practice', set_id=s.id) }}"
+                        title="Log practice for this set"
+                        aria-label="Log practice for this set{% if s.description %}: {{ s.description|e }}{% endif %}">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                  Practiced
+                </button>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="table-empty-filter" id="setsNoResults" style="display:none">
+    No rows match your filter.
+  </div>
+</div>
+{% else %}
+<p class="empty-hint">
+  {% if has_sets_in_db and set_type_filter %}
+    No sets match this type.
+  {% else %}
+    No sets yet. Use <strong>+ Add</strong> above to create one.
+  {% endif %}
+</p>
+{% endif %}
+
+<div id="setPracticeConfirmBackdrop" class="tune-modal-backdrop set-practice-confirm-backdrop" hidden aria-hidden="true">
+  <div class="tune-modal-dialog set-practice-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="setPracticeConfirmTitle" tabindex="-1">
+    <button type="button" class="tune-modal-close" id="setPracticeConfirmClose" aria-label="Close">&times;</button>
+    <div class="tune-modal-body">
+      <h2 class="set-modal-title" id="setPracticeConfirmTitle">Set tunes as practiced?</h2>
+      <div class="tune-modal-actions set-practice-confirm-actions">
+        <button type="button" class="btn btn-secondary" id="setPracticeConfirmNo">No</button>
+        <button type="button" class="btn btn-primary" id="setPracticeConfirmYes">Yes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('openCreateSetModalMain')?.addEventListener('click', () => {
+    window.mpOpenCreateSetModal?.();
+  });
+
+  (function () {
+    const tbody = document.querySelector('#setsTable tbody');
+    if (!tbody) return;
+
+    const headers = document.querySelectorAll('#setsTable th.sortable');
+    let sortCol = null;
+    let sortAsc = true;
+
+    function setThSortIcon(th, state) {
+      const wrap = th.querySelector('.sort-icon');
+      if (!wrap || !window.mpSortIcons) return;
+      if (state !== 'asc' && state !== 'desc') {
+        wrap.innerHTML = '';
+        return;
+      }
+      wrap.innerHTML = state === 'asc' ? window.mpSortIcons.asc : window.mpSortIcons.desc;
+    }
+
+    function stripArticle(s) {
+      return s.replace(/^(the|a)\s+/i, '');
+    }
+
+    function getCellText(row, colIdx) {
+      const el = row.querySelector('[data-sets-col="' + colIdx + '"]');
+      if (!el) return '';
+      const desc = el.querySelector('.sets-cell-desc');
+      if (desc) {
+        const t = desc.textContent.trim();
+        return t === '—' ? '' : stripArticle(t.toLowerCase());
+      }
+      const tunes = el.querySelector('.sets-col-tunes');
+      if (tunes) return stripArticle(tunes.textContent.trim().toLowerCase());
+      const badge = el.querySelector('.badge-type');
+      if (badge) return badge.textContent.trim().toLowerCase();
+      if (el.classList && el.classList.contains('sets-col-last-practiced')) {
+        return el.textContent.trim().toLowerCase();
+      }
+      const lastP = el.querySelector('.sets-col-last-practiced');
+      if (lastP) return lastP.textContent.trim().toLowerCase();
+      return el.textContent.trim().toLowerCase();
+    }
+
+    function sortTable(colIdx) {
+      if (sortCol === colIdx) sortAsc = !sortAsc;
+      else { sortCol = colIdx; sortAsc = true; }
+
+      headers.forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        setThSortIcon(th, null);
+      });
+      const activeHeader = document.querySelector(`#setsTable th[data-col="${colIdx}"]`);
+      activeHeader.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+      setThSortIcon(activeHeader, sortAsc ? 'asc' : 'desc');
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const av = getCellText(a, colIdx);
+        const bv = getCellText(b, colIdx);
+        if (av < bv) return sortAsc ? -1 : 1;
+        if (av > bv) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      rows.forEach(r => tbody.appendChild(r));
+      applyFilter();
+    }
+
+    headers.forEach(th => th.addEventListener('click', () => sortTable(+th.dataset.col)));
+
+    function openSetFromRow(tr) {
+      const url = tr && tr.dataset && tr.dataset.setPanelUrl;
+      if (url && window.mpOpenSetModal) window.mpOpenSetModal(url);
+    }
+
+    tbody.addEventListener('click', e => {
+      if (e.target.closest('.set-practiced-btn')) return;
+      const tr = e.target.closest('tr');
+      if (!tr || tr.parentElement !== tbody) return;
+      openSetFromRow(tr);
+    });
+
+    document.querySelectorAll('#setsTable .sets-cell-open-set[data-set-panel-url]').forEach(cell => {
+      cell.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          const tr = cell.closest('tr');
+          openSetFromRow(tr);
+        }
+      });
+    });
+
+    const filterInput = document.getElementById('setsTableFilter');
+    const clearBtn = document.getElementById('setsClearFilter');
+    const countEl = document.getElementById('setsVisibleCount');
+    const noResults = document.getElementById('setsNoResults');
+
+    function applyFilter() {
+      const term = (filterInput && filterInput.value.trim().toLowerCase()) || '';
+      if (clearBtn) clearBtn.style.display = term ? '' : 'none';
+
+      let visible = 0;
+      tbody.querySelectorAll('tr').forEach(row => {
+        const text = [0, 1, 2, 3]
+          .map(col => {
+            const el = row.querySelector('[data-sets-col="' + col + '"]');
+            return el ? el.textContent.trim() : '';
+          })
+          .join(' ')
+          .toLowerCase();
+
+        const show = !term || text.includes(term);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+
+      if (countEl) countEl.textContent = visible;
+      if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
+
+      let idx = 0;
+      tbody.querySelectorAll('tr').forEach(row => {
+        if (row.style.display === 'none') return;
+        row.classList.toggle('row-even', idx % 2 === 1);
+        idx++;
+      });
+    }
+
+    filterInput?.addEventListener('input', applyFilter);
+    clearBtn?.addEventListener('click', () => {
+      filterInput.value = '';
+      applyFilter();
+      filterInput.focus();
+    });
+
+    const practiceBackdrop = document.getElementById('setPracticeConfirmBackdrop');
+    const practiceCloseBtn = document.getElementById('setPracticeConfirmClose');
+    const practiceYesBtn = document.getElementById('setPracticeConfirmYes');
+    const practiceNoBtn = document.getElementById('setPracticeConfirmNo');
+    let pendingPractice = null;
+
+    function openSetPracticeModal(btn) {
+      pendingPractice = { btn, url: btn.dataset.practiceUrl };
+      practiceBackdrop.hidden = false;
+      practiceBackdrop.setAttribute('aria-hidden', 'false');
+      practiceYesBtn.focus();
+    }
+
+    function closeSetPracticeModal() {
+      practiceBackdrop.hidden = true;
+      practiceBackdrop.setAttribute('aria-hidden', 'true');
+      pendingPractice = null;
+    }
+
+    function submitSetPractice(logTunes) {
+      if (!pendingPractice) return;
+      const { btn, url } = pendingPractice;
+      closeSetPracticeModal();
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_tunes: logTunes }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            btn.classList.add('practiced-flash');
+            setTimeout(() => btn.classList.remove('practiced-flash'), 900);
+            if (data.date) {
+              const row = btn.closest('tr');
+              const lastEl = row?.querySelector('.sets-col-last-practiced');
+              if (lastEl) lastEl.textContent = data.date;
+            }
+          }
+        });
+    }
+
+    document.querySelectorAll('.set-practiced-btn[data-practice-url]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openSetPracticeModal(btn);
+      });
+    });
+
+    practiceYesBtn?.addEventListener('click', () => submitSetPractice(true));
+    practiceNoBtn?.addEventListener('click', () => submitSetPractice(false));
+    practiceCloseBtn?.addEventListener('click', closeSetPracticeModal);
+    practiceBackdrop?.addEventListener('click', e => {
+      if (e.target === practiceBackdrop) closeSetPracticeModal();
+    });
+    practiceBackdrop?.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeSetPracticeModal();
+    });
+
+    window.mpSetsTableRefreshAfterModal = applyFilter;
+  })();
+</script>
+{% endblock %}

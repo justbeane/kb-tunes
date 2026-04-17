@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Play Counts – Fiddle Practice{% endblock %}
+
+{% block content %}
+<form class="page-header--play-counts play-counts-header-row tp-header-form"
+      id="filterForm" method="get" action="{{ url_for('times_played') }}">
+  <div class="tp-header-left">
+    <h2 class="tp-page-title">Play Counts</h2>
+    <span class="tune-count" id="cardCount">{{ tunes|length }}</span>
+  </div>
+  <div class="tp-header-right">
+    <input
+      type="search"
+      name="search"
+      placeholder="Search…"
+      value="{{ search }}"
+      class="search-input tp-header-search"
+      id="searchInput"
+      autocomplete="off"
+    />
+    <div class="tp-filter-selects">
+      <select name="tune_type" class="filter-select" id="tpTypeSelect" aria-label="Type"
+              onchange="this.form.submit()">
+        <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
+        {% for tt in types_for_filter %}
+          <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+        {% endfor %}
+      </select>
+      <select name="psr" class="filter-select" id="tpPsrSelect" aria-label="Practice since reset"
+              onchange="this.form.submit()">
+        <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
+        <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
+        <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
+      </select>
+    </div>
+    <label class="table-sr-only" for="tpPeriodSelect">Duration</label>
+    <select name="period" class="filter-select" id="tpPeriodSelect" aria-label="Duration"
+            onchange="this.form.submit()">
+      {% for key, (label, _) in period_options.items() %}
+        <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="sort" id="sortInput" value="{{ sort }}">
+    <button type="button" id="sortToggle" class="btn-sort-toggle" title="Toggle sort order" aria-label="Toggle sort order">
+      <span id="sortIcon">{% if sort == 'most' %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="2 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="12 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>{% endif %}</span>
+    </button>
+    <a href="{{ url_for('add_tune') }}" class="btn btn-primary" aria-label="Add tune">+ Add Tune</a>
+  </div>
+</form>
+
+{% if tunes %}
+  <div class="card-grid">
+    {% for tune in tunes %}
+    <div class="tune-card" style="position:relative;cursor:pointer;"
+         data-tune-id="{{ tune.id }}"
+         data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}"
+         data-last-practiced="{{ tune.last_practiced or '' }}">
+      <h3 class="card-title">
+        <span class="card-title-text">{{ tune.name }}</span>
+        {% if (tune.notes or '')|trim %}
+        <span class="tune-notes-icon-wrap tune-notes-icon--card" title="Has notes" aria-label="Has notes">
+          <svg class="tune-notes-icon-svg" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/>
+            <path d="M16 13H8"/>
+            <path d="M16 17H8"/>
+            <path d="M10 9H8"/>
+          </svg>
+        </span>
+        {% endif %}
+      </h3>
+
+      <div class="card-badges">
+        {% if (tune.composer or '')|trim %}
+          <span class="badge badge-composer">{{ tune.composer|trim }}</span>
+        {% endif %}
+      </div>
+
+      <div class="card-actions">
+        <button class="btn btn-xs btn-practiced practiced-btn"
+                data-url="{{ url_for('practiced_tune', tune_id=tune.id) }}"
+                title="Mark as practiced today"
+                style="position:relative;z-index:1;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6 9 17l-5-5"/>
+          </svg>
+          Practiced
+        </button>
+        <div class="card-meta-right" style="position:relative;z-index:1;">
+          <span class="practice-count" title="{{ tune.period_count }} time{{ 's' if tune.period_count != 1 else '' }} in period">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/>
+              <line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>
+            </svg>
+            <span class="practice-count-num">{{ tune.period_count }}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+{% else %}
+  <div class="empty-state">
+    <p>No tunes match your filters.</p>
+  </div>
+{% endif %}
+
+<script>
+  // ── Practiced button (no page reload) ──
+  document.querySelectorAll('.practiced-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fetch(btn.dataset.url, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            btn.classList.add('practiced-flash');
+            setTimeout(() => btn.classList.remove('practiced-flash'), 900);
+            const card = btn.closest('.tune-card');
+            if (card && data.date) card.setAttribute('data-last-practiced', data.date);
+            window.mpSyncPlayedTodayHighlight?.();
+            const countNum = btn.closest('.card-actions')?.querySelector('.practice-count-num');
+            if (countNum) {
+              const num = parseInt(countNum.textContent.trim(), 10) || 0;
+              countNum.textContent = String(num + 1);
+            }
+          }
+        });
+    });
+  });
+
+  // ── Sort toggle button ──
+  const sortInput  = document.getElementById('sortInput');
+  const sortToggle = document.getElementById('sortToggle');
+  const sortIcon   = document.getElementById('sortIcon');
+
+  sortToggle?.addEventListener('click', () => {
+    const next = sortInput.value === 'most' ? 'least' : 'most';
+    sortInput.value = next;
+    if (window.mpSortIcons) {
+      sortIcon.innerHTML = next === 'most' ? window.mpSortIcons.asc : window.mpSortIcons.desc;
+    }
+    localStorage.setItem('mp-tp-sort', next);
+    document.getElementById('filterForm').submit();
+  });
+
+  // ── Persist filter selections ──
+  ['period', 'tune_type'].forEach(name => {
+    const sel = document.querySelector(`select[name="${name}"]`);
+    sel?.addEventListener('change', () =>
+      localStorage.setItem(`mp-tp-${name}`, sel.value));
+  });
+  document.getElementById('tpPsrSelect')?.addEventListener('change', e => {
+    localStorage.setItem('mp-tp-psr', e.target.value || 'all');
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  if (!['period', 'sort', 'tune_type', 'psr'].some(n => params.has(n)) && !params.has('search')) {
+    const tt = localStorage.getItem('mp-tp-tune_type')  || '';
+    const p  = localStorage.getItem('mp-tp-period')     || '';
+    const s  = localStorage.getItem('mp-tp-sort')       || '';
+    const psr = localStorage.getItem('mp-tp-psr')      || 'all';
+    if (tt || p || s || (psr && psr !== 'all')) {
+      if (tt) params.set('tune_type', tt);
+      if (p)  params.set('period', p);
+      if (s)  params.set('sort', s);
+      if (psr && psr !== 'all') params.set('psr', psr);
+      window.location.replace(window.location.pathname + '?' + params.toString());
+    }
+  }
+
+  // ── Live card search ──
+  const searchInput = document.getElementById('searchInput');
+  const countEl     = document.getElementById('cardCount');
+  const cards       = document.querySelectorAll('.tune-card');
+
+  if (searchInput && cards.length) {
+    searchInput.addEventListener('input', () => {
+      const term = searchInput.value.trim().toLowerCase();
+      let visible = 0;
+      cards.forEach(card => {
+        const title = card.querySelector('.card-title-text').textContent.toLowerCase();
+        const show  = !term || title.includes(term);
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      if (countEl) countEl.textContent = visible;
+    });
+    searchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') e.preventDefault();
+    });
+  }
+</script>
+{% endblock %}

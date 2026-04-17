@@ -1,0 +1,90 @@
+{# Shared edit/add fields. Expects: tune, action, tune_type_suggestions, key_suggestions, modal (bool). practice_groups from context. #}
+<form method="post" class="tune-form" id="tuneEditForm" action="{{ form_action }}">
+  {% if modal %}
+  <input type="hidden" name="modal" value="1" />
+  {% endif %}
+
+  <div class="form-group">
+    <label for="tune_name_field">Tune name <span class="required">*</span></label>
+    <input type="text" id="tune_name_field" name="name"
+           value="{{ (tune['name'] or '') if tune else '' }}"
+           placeholder="e.g. The Kid on the Mountain"
+           required {% if not modal %}autofocus{% endif %} />
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <span class="form-group-label" id="tune_tune_type_label">Type</span>
+      <div class="mp-suggest">
+        <input type="text" id="tune_tune_type" name="tune_type" class="mp-suggest-input"
+               value="{{ (tune['tune_type'] or '') if tune else '' }}"
+               placeholder="Select Type"
+               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-labelledby="tune_tune_type_label"
+               aria-controls="tune_tune_type_menu" />
+        <ul class="mp-suggest-menu" id="tune_tune_type_menu" role="listbox" hidden></ul>
+        <script type="application/json" class="mp-suggest-data">{{ tune_type_suggestions|tojson }}</script>
+      </div>
+    </div>
+    <div class="form-group">
+      <span class="form-group-label" id="tune_key_label">Key</span>
+      <div class="mp-suggest">
+        <input type="text" id="tune_key" name="key" class="mp-suggest-input"
+               value="{{ (tune['key'] or '') if tune else '' }}"
+               placeholder="Select Key"
+               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-labelledby="tune_key_label"
+               aria-controls="tune_key_menu" />
+        <ul class="mp-suggest-menu" id="tune_key_menu" role="listbox" hidden></ul>
+        <script type="application/json" class="mp-suggest-data">{{ key_suggestions|tojson }}</script>
+      </div>
+    </div>
+  </div>
+
+  <fieldset class="form-group practice-groups-fieldset practice-groups-pills-fieldset">
+    <legend class="practice-groups-legend">Practice Groups</legend>
+    <div class="practice-groups-legend-spacer" aria-hidden="true"></div>
+    <div class="mp-practice-groups">
+      <div class="practice-groups-pills" role="list" aria-label="Selected practice groups"></div>
+      <div class="mp-practice-groups-combo">
+        <input type="text" id="tune_practice_groups_pick" class="mp-suggest-input mp-practice-groups-input"
+               placeholder="Add practice group…" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-controls="tune_practice_groups_menu" />
+        <ul class="mp-suggest-menu mp-practice-groups-menu" id="tune_practice_groups_menu" role="listbox" hidden></ul>
+      </div>
+      <div class="mp-practice-groups-hiddens">
+        {% if tune %}
+        {% for g in tune.practice_group|practice_groups_selected %}
+        <input type="hidden" name="practice_group" value="{{ g|e }}" />
+        {% endfor %}
+        {% endif %}
+      </div>
+      <script type="application/json" class="mp-practice-groups-all">{{ practice_groups | list | tojson }}</script>
+    </div>
+  </fieldset>
+
+  <div class="form-group">
+    <span class="form-group-label" id="tune_composer_label">Composer</span>
+    <input type="text" id="tune_composer" name="composer"
+           value="{{ (tune['composer'] or '') if tune else '' }}"
+           placeholder="e.g. Turlough Carolan" autocomplete="off"
+           aria-labelledby="tune_composer_label" />
+  </div>
+
+  <div class="form-group">
+    <span class="form-group-label" id="tune_lessons_label">Lessons</span>
+    <textarea id="tune_lessons" name="lessons" class="tune-lessons-textarea" rows="4"
+              placeholder="File names, one per line" autocomplete="off"
+              aria-labelledby="tune_lessons_label">{{ (tune['lessons'] or '') if tune else '' }}</textarea>
+  </div>
+
+  {% if not modal %}
+  <div class="form-actions">
+    <div class="form-actions-right">
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">{{ action }} tune</button>
+    </div>
+  </div>
+  {% endif %}
+</form>

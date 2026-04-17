@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Lesson Tunes – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="lesson-tunes-page">
+  <div class="page-header">
+    <h2>Lesson Tunes</h2>
+    <p class="lesson-tunes-intro">
+      Files in the <code>lesson_tunes</code> folder (next to the app). Add PDFs, audio, or other lesson materials there to list them here.
+    </p>
+  </div>
+  {% include "_lesson_tunes_table.html" %}
+</div>
+<script type="application/json" id="mp-lesson-tunes-picker-json">{{ picker_tunes|tojson }}</script>
+<script src="{{ url_for('static', filename='mp_lesson_tunes_table.js') }}" defer></script>
+{% endblock %}
