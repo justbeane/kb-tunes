@@ -32,32 +32,6 @@
 </div>
 {% endmacro %}
 
-{% macro lesson_file_embed(f) %}
-{% set src = url_for('lesson_tunes_download', filename=f.name) %}
-{% if f.embed_kind == 'audio' %}
-<div class="tune-panel-lesson-embed tune-panel-lesson-embed--audio">
-  <audio controls preload="metadata" class="tune-panel-lesson-audio">
-    {% if f.media_type %}<source src="{{ src }}" type="{{ f.media_type }}" />{% else %}<source src="{{ src }}" />{% endif %}
-    <a href="{{ src }}">Download audio</a>
-  </audio>
-</div>
-{% elif f.embed_kind == 'video' %}
-<div class="tune-panel-lesson-embed tune-panel-lesson-embed--video">
-  <video controls preload="metadata" playsinline class="tune-panel-lesson-video">
-    {% if f.media_type %}<source src="{{ src }}" type="{{ f.media_type }}" />{% else %}<source src="{{ src }}" />{% endif %}
-  </video>
-</div>
-{% elif f.embed_kind == 'pdf' %}
-<div class="tune-panel-lesson-embed tune-panel-lesson-embed--pdf">
-  <iframe class="tune-panel-lesson-pdf" src="{{ src }}" title="{{ f.name|e }}"></iframe>
-</div>
-{% elif f.embed_kind == 'image' %}
-<div class="tune-panel-lesson-embed tune-panel-lesson-embed--image">
-  <img class="tune-panel-lesson-image" src="{{ src }}" alt="" loading="lazy" decoding="async" />
-</div>
-{% endif %}
-{% endmacro %}
-
 <div class="tune-panel-modal">
   <h2 class="tune-panel-modal-heading" id="tunePanelHeading">
     <span class="tune-panel-modal-title-text">{{ tune.name }}</span>
@@ -81,8 +55,6 @@
             aria-selected="false" aria-controls="tunePanelPanelNotes" tabindex="-1" data-tab="notes">Notes</button>
     <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabLinks"
             aria-selected="false" aria-controls="tunePanelPanelLinks" tabindex="-1" data-tab="links">Links</button>
-    <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabFiles"
-            aria-selected="false" aria-controls="tunePanelPanelFiles" tabindex="-1" data-tab="files">Files</button>
     {% for slice_id in soundslice_embeds or [] %}
     <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabSoundslice{{ loop.index0 }}"
             aria-selected="false" aria-controls="tunePanelPanelSoundslice{{ loop.index0 }}" tabindex="-1"
@@ -118,6 +90,45 @@
 {% with modal=True, form_action=url_for('edit_tune', tune_id=tune.id) %}
 {% include "tune_form_inner.html" %}
 {% endwith %}
+
+      <section class="tune-panel-sets-section" aria-labelledby="tunePanelSetsHeading">
+        <h3 id="tunePanelSetsHeading" class="tune-panel-sets-heading">Sets</h3>
+        {% if tune_sets %}
+        <div class="tune-panel-sets-table-wrap">
+          <table class="tune-table tune-panel-sets-table">
+            <thead>
+              <tr>
+                <th scope="col" class="tune-panel-sets-col-set">Set</th>
+                <th scope="col" class="tune-panel-sets-col-tunes">Tunes in set</th>
+                <th scope="col" class="tune-panel-sets-col-days">Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for st in tune_sets %}
+              <tr>
+                <td class="tune-panel-sets-col-set">
+                  <a href="{{ url_for('set_panel', set_id=st.id) }}"
+                     class="tune-link tune-panel-nested-open"
+                     data-set-panel-url="{{ url_for('set_panel', set_id=st.id) }}">{% if st.description %}{{ st.description }}{% else %}Set {{ st.id }}{% endif %}</a>
+                </td>
+                <td class="tune-panel-sets-tunes-cell tune-panel-sets-col-tunes">
+                  {% for t in st.tunes %}
+                  {% if not loop.first %}<span class="tune-panel-sets-tune-sep">, </span>{% endif %}
+                  <a href="{{ url_for('tune_panel', tune_id=t.id) }}"
+                     class="tune-link tune-panel-nested-open"
+                     data-panel-url="{{ url_for('tune_panel', tune_id=t.id) }}">{{ t.name }}</a>
+                  {% endfor %}
+                </td>
+                <td class="tune-panel-sets-days-cell tune-panel-sets-col-days">{% if st.days_since_last is not none %}{{ st.days_since_last }}{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="tune-panel-sets-empty">This tune is not in any set yet.</p>
+        {% endif %}
+      </section>
     </div>
   </div>
 
@@ -154,65 +165,6 @@
       {{ tune_panel_link_row(1, 'link_1') }}
       {{ tune_panel_link_row(2, 'link_2') }}
       {{ tune_panel_link_row(3, 'link_3') }}
-    </div>
-  </div>
-
-  <div class="tune-panel-tabpanel" role="tabpanel" id="tunePanelPanelFiles" aria-labelledby="tunePanelTabFiles"
-       data-panel="files" hidden>
-    <div class="tune-panel-modal-card tune-panel-files-card">
-      <section class="tune-panel-files-section" aria-label="Lesson files from Lessons field">
-        {% set tune_lesson_playable = (tune_lesson_files or []) | rejectattr('missing') | selectattr('embed_kind') | list %}
-        {% if tune_lesson_playable %}
-        <div class="tune-panel-files-playback">
-          <section class="tune-panel-lesson-media" aria-label="Lesson files playback">
-            <h3 class="tune-panel-lesson-media-heading">Lesson playback</h3>
-            <p class="tune-panel-lesson-media-note">Files from your <strong>Lessons</strong> list (set on the <strong>Details</strong> tab) in the <code>lesson_tunes</code> folder.</p>
-            <div class="tune-panel-lesson-media-list">
-              {% for f in tune_lesson_playable %}
-              <div class="tune-panel-lesson-media-item">
-                <div class="tune-panel-lesson-media-title">
-                  <a href="{{ url_for('lesson_tunes_download', filename=f.name) }}">{{ f.name }}</a>
-                </div>
-                {{ lesson_file_embed(f) }}
-              </div>
-              {% endfor %}
-            </div>
-          </section>
-          <hr class="tune-panel-modal-divider tune-panel-files-playback-divider" aria-hidden="true" />
-        </div>
-        {% endif %}
-        <p class="tune-panel-files-hint">All lines from <strong>Details → Lessons</strong>. The table lists every entry; players above cover files that exist on disk and can be previewed.</p>
-        <div class="tune-panel-files-table-wrap">
-          <table class="tune-table tune-panel-files-table">
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Size</th>
-                <th>Modified</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for f in tune_lesson_files or [] %}
-              <tr class="tune-panel-file-meta-row {% if f.missing %}tune-panel-file-row--missing{% endif %}">
-                <td>
-                  {% if not f.missing %}
-                  <a href="{{ url_for('lesson_tunes_download', filename=f.name) }}">{{ f.name }}</a>
-                  {% else %}
-                  <span class="tune-panel-file-missing-name" title="No file with this name in lesson_tunes">{{ f.name }}</span>
-                  {% endif %}
-                </td>
-                <td>{{ f.size_label }}</td>
-                <td>{{ f.modified_label }}</td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="3" class="tune-panel-files-empty">No file names in Lessons yet.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   </div>
 

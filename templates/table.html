@@ -3,11 +3,32 @@
 {% block title %}{% if practice_group_label %}Table – {{ practice_group_label }} – {% else %}Table – {% endif %}Fiddle Practice{% endblock %}
 
 {% block content %}
-<div class="page-header page-header--table">
+<div class="page-header page-header--table{% if practice_group_label %} page-header--practice-group{% endif %}">
+  {% if practice_group_label %}
+  <h2 class="practice-group-mobile-page-title">{{ practice_group_label }}</h2>
+  <form method="get" action="{{ url_for('table_view') }}" class="practice-group-played-order-form" aria-label="Last played order">
+    <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
+    {% if tune_type %}<input type="hidden" name="tune_type" value="{{ tune_type }}" />{% endif %}
+    {% if psr_filter == 'psr' %}
+    <input type="hidden" name="psr" value="psr" />
+    {% elif psr_filter == 'not_psr' %}
+    <input type="hidden" name="psr" value="not_psr" />
+    {% endif %}
+    <div class="sets-order-toggle practice-group-order-toggle" role="group" aria-label="Sort by last played date and time">
+      <button type="submit" name="played" value="asc"
+              class="sets-order-btn{% if practice_group_played_order == 'asc' %} sets-order-btn--active{% endif %}"
+              aria-pressed="{{ 'true' if practice_group_played_order == 'asc' else 'false' }}">Asc</button>
+      <button type="submit" name="played" value="desc"
+              class="sets-order-btn{% if practice_group_played_order == 'desc' %} sets-order-btn--active{% endif %}"
+              aria-pressed="{{ 'true' if practice_group_played_order == 'desc' else 'false' }}">Desc</button>
+    </div>
+  </form>
+  {% endif %}
   <div class="table-toolbar-left">
     <form method="get" action="{{ url_for('table_view') }}" class="table-type-filter-form">
       {% if practice_group_label %}
       <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
+      <input type="hidden" name="played" value="{{ practice_group_played_order }}" />
       {% endif %}
       <select name="tune_type" class="filter-select" id="tableTypeSelect" aria-label="Type">
         <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
@@ -22,7 +43,7 @@
       </select>
     </form>
     {% if practice_group_label %}
-    <span class="table-toolbar-group-label" title="Filtered by practice group">{{ practice_group_label }}</span>
+    <span class="table-toolbar-group-label table-toolbar-group-label--desktop-only" title="Filtered by practice group">{{ practice_group_label }}</span>
     {% endif %}
     <span class="tune-count" id="visibleCount">{{ tunes|length }}</span>
   </div>
@@ -34,7 +55,63 @@
 </div>
 
 {% if tunes %}
-<div class="table-wrap">
+{% if practice_group_label %}
+<div id="practiceGroupCardGrid" class="card-grid practice-group-mobile-card-grid" aria-label="Tunes in practice group">
+  {% for tune in tunes %}
+  <div class="tune-card" style="position:relative;cursor:pointer;"
+       data-tune-id="{{ tune.id }}"
+       data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}"
+       data-last-practiced="{{ tune.last_practiced or '' }}">
+    <h3 class="card-title">
+      <span class="card-title-text">{{ tune.name }}</span>
+      {% if (tune.notes or '')|trim %}
+      <span class="tune-notes-icon-wrap tune-notes-icon--card" title="Has notes" aria-label="Has notes">
+        <svg class="tune-notes-icon-svg" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M16 13H8"/>
+          <path d="M16 17H8"/>
+          <path d="M10 9H8"/>
+        </svg>
+      </span>
+      {% endif %}
+    </h3>
+    <div class="card-badges">
+      {% if (tune.composer or '')|trim %}
+        <span class="badge badge-composer">{{ tune.composer|trim }}</span>
+      {% endif %}
+    </div>
+    <div class="card-actions">
+      <button type="button" class="btn btn-xs btn-practiced practiced-btn"
+              data-url="{{ url_for('practiced_tune', tune_id=tune.id) }}"
+              title="Mark as practiced today"
+              style="position:relative;z-index:1;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 6 9 17l-5-5"/>
+        </svg>
+        Practiced
+      </button>
+      <div class="card-meta-right" style="position:relative;z-index:1;">
+        <span class="practice-count" title="{{ tune.practice_count }} practice session{{ 's' if tune.practice_count != 1 else '' }}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/>
+            <line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>
+          </svg>
+          <span class="practice-count-num">{{ tune.practice_count }}</span>
+        </span>
+        <span class="card-days-since" title="Days since last practiced">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+          </svg>
+          <span class="card-days-since-num">{% if tune.days_since_last is not none %}{{ tune.days_since_last }}{% else %}—{% endif %}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="table-wrap{% if practice_group_label %} table-wrap--practice-group-desktop{% endif %}">
   <div class="table-wrap__inner">
   <table class="tune-table table-layout-modern table-filter-all" id="tuneTable">
     <thead>
@@ -107,9 +184,9 @@
   </table>
   </div>
   <script type="application/json" id="mpTableSuggestPayload">{{ {'tune_type': tune_type_suggestions, 'key': key_suggestions}|tojson }}</script>
-  <div class="table-empty-filter" id="noResults" style="display:none">
-    No rows match your filter.
-  </div>
+</div>
+<div class="table-empty-filter" id="noResults" style="display:none">
+  No rows match your filter.
 </div>
 
 {% else %}
@@ -311,7 +388,7 @@
     });
   });
 
-  document.querySelectorAll('#tuneTable .practiced-btn').forEach(btn => {
+  document.querySelectorAll('#tuneTable .practiced-btn, #practiceGroupCardGrid .practiced-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -322,7 +399,9 @@
           btn.classList.add('practiced-flash');
           setTimeout(() => btn.classList.remove('practiced-flash'), 900);
           const row = btn.closest('tr');
+          const card = btn.closest('.tune-card');
           if (row && data.date) row.setAttribute('data-last-practiced', data.date);
+          if (card && data.date) card.setAttribute('data-last-practiced', data.date);
           window.mpSyncPlayedTodayHighlight?.();
           const playsEl = row?.querySelector('.tune-table-plays');
           const daysEl = row?.querySelector('.tune-table-days');
@@ -331,6 +410,14 @@
             playsEl.textContent = String(n + 1);
           }
           if (daysEl) daysEl.textContent = '0';
+          const cardMeta = card && btn.closest('.card-actions')?.querySelector('.card-meta-right');
+          const countNum = cardMeta?.querySelector('.practice-count-num');
+          const daysNum = cardMeta?.querySelector('.card-days-since-num');
+          if (countNum) {
+            const n = parseInt(countNum.textContent.trim(), 10) || 0;
+            countNum.textContent = String(n + 1);
+          }
+          if (daysNum) daysNum.textContent = '0';
         });
     });
   });
@@ -339,13 +426,19 @@
   const clearBtn     = document.getElementById('clearFilter');
   const countEl      = document.getElementById('visibleCount');
   const noResults    = document.getElementById('noResults');
+  const pgCardGrid   = document.getElementById('practiceGroupCardGrid');
+  const pgCards      = pgCardGrid ? Array.from(pgCardGrid.querySelectorAll('.tune-card')) : [];
 
   function applyFilter() {
     const term = filterInput.value.trim().toLowerCase();
     clearBtn.style.display = term ? '' : 'none';
 
     let visible = 0;
-    tbody.querySelectorAll('tr').forEach(row => {
+    const usePgCards =
+      pgCards.length && typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 768px)').matches;
+
+    if (tbody) tbody.querySelectorAll('tr').forEach(row => {
       const text = Array.from(row.cells)
         .filter(td => !td.classList.contains('col-tune-practice'))
         .map(td => {
@@ -363,11 +456,21 @@
 
       const show = !term || text.includes(term);
       row.style.display = show ? '' : 'none';
-      if (show) visible++;
+      if (show && !usePgCards) visible++;
     });
+    }
 
-    countEl.textContent = visible;
-    noResults.style.display = visible === 0 ? '' : 'none';
+    if (pgCards.length) {
+      pgCards.forEach(card => {
+        const title = card.querySelector('.card-title-text')?.textContent.trim().toLowerCase() || '';
+        const show = !term || title.includes(term);
+        card.style.display = show ? '' : 'none';
+        if (show && usePgCards) visible++;
+      });
+    }
+
+    if (countEl) countEl.textContent = String(visible);
+    if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
     updateStripes();
   }
 
@@ -375,6 +478,10 @@
   clearBtn.addEventListener('click', () => { filterInput.value = ''; applyFilter(); filterInput.focus(); });
 
   function updateStripes() {
+    if (!tbody) {
+      window.mpSyncPlayedTodayHighlight?.();
+      return;
+    }
     let idx = 0;
     tbody.querySelectorAll('tr').forEach(row => {
       if (row.style.display === 'none') return;

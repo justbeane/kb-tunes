@@ -283,6 +283,23 @@ def practice_date_display_filter(value):
     return s
 
 
+@app.template_filter("practice_datetime_no_seconds")
+def practice_datetime_no_seconds_filter(value):
+    """Practice timestamp for display: YYYY-MM-DD HH:MM (drop seconds if present)."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    if "T" in s:
+        s = s.replace("T", " ", 1)
+    if len(s) >= 16 and s[10] == " ":
+        return s[:16]
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    return s
+
+
 def resync_practice_groups_from_csv(csv_path: Path | None = None) -> int:
     """Re-read Practice Group column from tunes.csv and update tunes.practice_group."""
     import csv as _csv
@@ -1050,6 +1067,74 @@ def _soundslice_slice_ids_from_tune(tune_row):
     return ids
 
 
+def _tune_sets_for_panel(conn, tune_id: int) -> list[dict]:
+    """Sets that include this tune: tune list, last set practice, days since."""
+    rows = conn.execute(
+        """
+        SELECT se.id AS set_id, se.description
+        FROM set_tunes st
+        JOIN sets se ON se.id = st.set_id
+        WHERE st.tune_id = ?
+        ORDER BY (TRIM(COALESCE(se.description, '')) = ''),
+                 LOWER(TRIM(COALESCE(se.description, ''))),
+                 se.id
+        """,
+        (tune_id,),
+    ).fetchall()
+    if not rows:
+        return []
+    set_ids = [int(r["set_id"]) for r in rows]
+    ph = ",".join("?" * len(set_ids))
+    last_by_set: dict[int, str | None] = {}
+    for r in conn.execute(
+        f"""
+        SELECT set_id, MAX(date_practiced) AS last_practiced
+        FROM set_practice
+        WHERE set_id IN ({ph})
+        GROUP BY set_id
+        """,
+        set_ids,
+    ):
+        last_by_set[int(r["set_id"])] = r["last_practiced"]
+    tunes_by_set: dict[int, list[dict]] = {sid: [] for sid in set_ids}
+    for r in conn.execute(
+        f"""
+        SELECT ss.set_id, s.id AS tune_id, s.name
+        FROM set_tunes ss
+        JOIN tunes s ON s.id = ss.tune_id
+        WHERE ss.set_id IN ({ph})
+        ORDER BY ss.set_id, ss.sort_order ASC, ss.tune_id ASC
+        """,
+        set_ids,
+    ):
+        tunes_by_set[int(r["set_id"])].append(
+            {"id": int(r["tune_id"]), "name": r["name"]}
+        )
+    out: list[dict] = []
+    for r in rows:
+        sid = int(r["set_id"])
+        lp = last_by_set.get(sid)
+        days_since_last = None
+        if lp:
+            try:
+                days_since_last = (
+                    date.today() - date.fromisoformat(str(lp)[:10])
+                ).days
+            except ValueError:
+                pass
+        desc = (r["description"] or "").strip()
+        out.append(
+            {
+                "id": sid,
+                "description": desc,
+                "last_practiced": lp,
+                "days_since_last": days_since_last,
+                "tunes": tunes_by_set[sid],
+            }
+        )
+    return out
+
+
 @app.route("/tune/<int:tune_id>/panel")
 def tune_panel(tune_id):
     with get_db() as conn:
@@ -1057,13 +1142,14 @@ def tune_panel(tune_id):
         if not tune:
             return "Not found", 404
         stats = _practice_stats(conn, tune_id)
+        tune_sets = _tune_sets_for_panel(conn, tune_id)
     return render_template(
         "tune_panel.html",
         tune=tune,
         soundslice_embeds=_soundslice_slice_ids_from_tune(tune),
         tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
         key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
-        tune_lesson_files=tune_lesson_files_rows(tune),
+        tune_sets=tune_sets,
         **stats,
     )
 
@@ -1216,7 +1302,8 @@ def record_set_practice(set_id):
                     (r["tune_id"], ts),
                 )
         conn.commit()
-    return jsonify({"ok": True, "date": ts})
+    days_since = (date.today() - date.fromisoformat(ts[:10])).days
+    return jsonify({"ok": True, "date": ts, "days_since_last": days_since})
 
 
 def _statistics_payload(conn):
@@ -2069,6 +2156,13 @@ def table_view():
     psr_filter = _psr_filter_from_request()
     req_pg = request.args.get("practice_group", "").strip()
     filter_pg = map_practice_group_token(req_pg) if req_pg else None
+    # Same semantics as /sets: played=asc → newest last_practiced first; played=desc → oldest first.
+    practice_group_played_order = "asc"
+    if filter_pg:
+        req_played = (request.args.get("played") or "asc").strip().lower()
+        practice_group_played_order = (
+            req_played if req_played in ("asc", "desc") else "asc"
+        )
 
     type_cond_parts = ["TRIM(COALESCE(s.tune_type, '')) != ''"]
     type_params: list = []
@@ -2115,6 +2209,22 @@ def table_view():
             elif psr_filter == PSR_FILTER_NOT_PSR:
                 tunes = [t for t in tunes if int(t["id"]) not in practiced_since]
             practice_group_label = filter_pg
+
+            def _pg_last_played_sort_key(row: sqlite3.Row) -> tuple:
+                lp = row["last_practiced"]
+                if not lp:
+                    return (0, "")
+                return (1, str(lp))
+
+            if practice_group_played_order == "asc":
+                tunes.sort(key=_pg_last_played_sort_key, reverse=True)
+            else:
+                tunes.sort(
+                    key=lambda r: (
+                        0 if r["last_practiced"] else 1,
+                        r["last_practiced"] or "",
+                    )
+                )
         else:
             tune_type = req_tune_type if req_tune_type in types_for_filter_all else ""
             conditions, params = [], []
@@ -2138,6 +2248,7 @@ def table_view():
         tune_type_suggestions=tune_type_suggestions,
         key_suggestions=key_suggestions,
         practice_group_label=practice_group_label,
+        practice_group_played_order=practice_group_played_order,
     )
 
 
@@ -2560,34 +2671,17 @@ def delete_set(set_id):
 
 @app.route("/sets", methods=["GET"])
 def sets_view():
-    req_set_type = request.args.get("set_type", "").strip()
+    # Mobile "Asc" / "Desc" toggle: UI label is intentionally inverted vs sort direction.
+    # played=asc → newest last_played first (DESC). played=desc → oldest first (ASC).
+    req_played = (request.args.get("played") or "asc").strip().lower()
+    if req_played not in ("asc", "desc"):
+        req_played = "asc"
     with get_db() as conn:
         has_sets_in_db = (
             conn.execute("SELECT 1 FROM sets LIMIT 1").fetchone() is not None
         )
-        type_rows = conn.execute(
-            """
-            SELECT DISTINCT TRIM(type) AS t
-            FROM sets
-            WHERE TRIM(COALESCE(type, '')) != ''
-            ORDER BY t COLLATE NOCASE
-            """
-        ).fetchall()
-        set_types_for_filter = [str(r["t"]) for r in type_rows if r["t"] is not None]
-
-        set_type_filter = (
-            req_set_type if req_set_type in set_types_for_filter else ""
-        )
-
-        conditions, params = [], []
-        if set_type_filter:
-            conditions.append("TRIM(COALESCE(type, '')) = ?")
-            params.append(set_type_filter)
-        where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-
         sets = conn.execute(
-            f"SELECT id, description, type FROM sets {where_sql} ORDER BY id DESC",
-            params,
+            "SELECT id, description, type FROM sets ORDER BY id DESC",
         ).fetchall()
         set_ids = [r["id"] for r in sets]
         last_by_set = {}
@@ -2615,22 +2709,45 @@ def sets_view():
                 set_ids,
             ):
                 tunes_by_set[r["set_id"]].append(r["name"])
-        sets_display = [
-            {
-                "id": r["id"],
-                "description": r["description"],
-                "type": r["type"],
-                "last_practiced": last_by_set.get(r["id"]),
-                "tunes_names": ", ".join(tunes_by_set[r["id"]]),
-            }
-            for r in sets
-        ]
+        sets_display = []
+        for r in sets:
+            lp = last_by_set.get(r["id"])
+            days_since_last = None
+            if lp:
+                try:
+                    days_since_last = (
+                        date.today() - date.fromisoformat(str(lp)[:10])
+                    ).days
+                except ValueError:
+                    pass
+            sets_display.append(
+                {
+                    "id": r["id"],
+                    "description": r["description"],
+                    "type": r["type"],
+                    "last_practiced": lp,
+                    "days_since_last": days_since_last,
+                    "tunes_names": ", ".join(tunes_by_set[r["id"]]),
+                }
+            )
+
+        def _last_played_sort_key(row: dict) -> tuple:
+            lp = row["last_practiced"]
+            if not lp:
+                return (0, "")
+            return (1, str(lp))
+
+        if req_played == "asc":
+            sets_display.sort(key=_last_played_sort_key, reverse=True)
+        else:
+            sets_display.sort(
+                key=lambda x: (0 if x["last_practiced"] else 1, x["last_practiced"] or "")
+            )
     return render_template(
         "sets.html",
         sets=sets_display,
-        set_type_filter=set_type_filter,
-        set_types_for_filter=set_types_for_filter,
         has_sets_in_db=has_sets_in_db,
+        sets_played_order=req_played,
     )
 
 

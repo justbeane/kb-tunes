@@ -41,11 +41,10 @@
     </div>
   </div>
 
-  <fieldset class="form-group practice-groups-fieldset practice-groups-pills-fieldset">
-    <legend class="practice-groups-legend">Practice Groups</legend>
-    <div class="practice-groups-legend-spacer" aria-hidden="true"></div>
+  <div class="form-group">
+    <span class="form-group-label" id="tune_practice_groups_label">Practice groups</span>
     <div class="mp-practice-groups">
-      <div class="practice-groups-pills" role="list" aria-label="Selected practice groups"></div>
+      <div class="practice-groups-pills" role="list" aria-labelledby="tune_practice_groups_label"></div>
       <div class="mp-practice-groups-combo">
         <input type="text" id="tune_practice_groups_pick" class="mp-suggest-input mp-practice-groups-input"
                placeholder="Add practice group…" autocomplete="off"
@@ -62,24 +61,23 @@
       </div>
       <script type="application/json" class="mp-practice-groups-all">{{ practice_groups | list | tojson }}</script>
     </div>
-  </fieldset>
+  </div>
 
   <div class="form-group">
     <span class="form-group-label" id="tune_composer_label">Composer</span>
     <input type="text" id="tune_composer" name="composer"
            value="{{ (tune['composer'] or '') if tune else '' }}"
-           placeholder="e.g. Turlough Carolan" autocomplete="off"
+           autocomplete="off"
            aria-labelledby="tune_composer_label" />
   </div>
 
+  {% if not modal %}
   <div class="form-group">
     <span class="form-group-label" id="tune_lessons_label">Lessons</span>
     <textarea id="tune_lessons" name="lessons" class="tune-lessons-textarea" rows="4"
               placeholder="File names, one per line" autocomplete="off"
               aria-labelledby="tune_lessons_label">{{ (tune['lessons'] or '') if tune else '' }}</textarea>
   </div>
-
-  {% if not modal %}
   <div class="form-actions">
     <div class="form-actions-right">
       <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>

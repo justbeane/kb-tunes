@@ -4,23 +4,25 @@
 
 {% block content %}
 <div class="page-header page-header--table page-header--sets">
-  <div class="table-toolbar-left">
+  <div class="sets-toolbar-start table-toolbar-left">
     <h2>Sets</h2>
-    <form method="get" action="{{ url_for('sets_view') }}" class="table-type-filter-form">
-      <label class="table-sr-only" for="setsTypeFilter">Filter by type</label>
-      <select name="set_type" class="filter-select" id="setsTypeFilter" aria-label="Set type"
-              onchange="this.form.submit()">
-        <option value="" {% if not set_type_filter %}selected{% endif %}>All Types</option>
-        {% for tt in set_types_for_filter %}
-          <option value="{{ tt }}" {% if set_type_filter == tt %}selected{% endif %}>{{ tt }}</option>
-        {% endfor %}
-      </select>
+    <form method="get" action="{{ url_for('sets_view') }}" class="sets-played-order-form" aria-label="Last played order">
+      <div class="sets-order-toggle" role="group" aria-label="Sort by last played date and time">
+        <button type="submit" name="played" value="asc"
+                class="sets-order-btn{% if sets_played_order == 'asc' %} sets-order-btn--active{% endif %}"
+                aria-pressed="{{ 'true' if sets_played_order == 'asc' else 'false' }}">Asc</button>
+        <button type="submit" name="played" value="desc"
+                class="sets-order-btn{% if sets_played_order == 'desc' %} sets-order-btn--active{% endif %}"
+                aria-pressed="{{ 'true' if sets_played_order == 'desc' else 'false' }}">Desc</button>
+      </div>
     </form>
     <span class="tune-count" id="setsVisibleCount">{{ sets|length }}</span>
   </div>
-  <div class="table-controls table-controls--right">
-    <input type="search" id="setsTableFilter" class="search-input" placeholder="Filter rows…" autocomplete="off" />
-    <button type="button" class="btn btn-ghost btn-secondary" id="setsClearFilter" style="display:none">Clear</button>
+  <div class="sets-toolbar-end table-controls table-controls--right">
+    <div class="sets-filter-strip">
+      <input type="search" id="setsTableFilter" class="search-input" placeholder="Filter rows…" autocomplete="off" />
+      <button type="button" class="btn btn-ghost btn-secondary" id="setsClearFilter" style="display:none">Clear</button>
+    </div>
     <button type="button" class="btn btn-primary btn-sm" id="openCreateSetModalMain">+ Add</button>
   </div>
 </div>
@@ -48,39 +50,51 @@
         <th class="sortable" data-col="1">{{ sortable_heading('Tunes') }}</th>
         <th class="sortable" data-col="2">{{ sortable_heading('Type') }}</th>
         <th class="sortable" data-col="3">{{ sortable_heading('Last') }}</th>
-        <th class="col-set-practice" scope="col"><span class="table-sr-only">Practice set</span></th>
+        <th class="sortable" data-col="4">{{ sortable_heading('Days') }}</th>
+        <th class="col-set-practice sets-th-practice" scope="col">Practiced</th>
       </tr>
     </thead>
     <tbody>
       {% for s in sets %}
       <tr data-id="{{ s.id }}" data-set-panel-url="{{ url_for('set_panel', set_id=s.id) }}" class="sets-table-row">
-        <td class="sets-unified-cell" colspan="5">
-          <div class="sets-row-inner">
-            <div class="sets-cell-desc-wrap" data-sets-col="0">
-              <span class="sets-cell-desc sets-cell-open-set" role="link" tabindex="0"
-                    data-set-panel-url="{{ url_for('set_panel', set_id=s.id) }}"
-                    title="View Set">{{ s.description if s.description else '—' }}</span>
-            </div>
-            <div class="sets-col-tunes-cell" data-sets-col="1">
-              <span class="sets-col-tunes">{% if s.tunes_names %}{{ s.tunes_names }}{% endif %}</span>
-            </div>
-            <div class="sets-col-type{% if not s.type %} sets-col-type--empty{% endif %}" data-sets-col="2">
-              {% if s.type %}<span class="badge badge-type">{{ s.type }}</span>{% else %}<span class="sets-cell-empty">—</span>{% endif %}
-            </div>
-            <span class="sets-col-last-practiced" data-sets-col="3">{% if s.last_practiced %}{{ s.last_practiced }}{% endif %}</span>
-            <div class="sets-cell-practice-wrap col-set-practice">
-              <div class="sets-col-practice-inner">
-                <button type="button" class="btn btn-xs btn-practiced set-practiced-btn"
-                        data-practice-url="{{ url_for('record_set_practice', set_id=s.id) }}"
-                        title="Log practice for this set"
-                        aria-label="Log practice for this set{% if s.description %}: {{ s.description|e }}{% endif %}">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M20 6 9 17l-5-5"/>
-                  </svg>
-                  Practiced
-                </button>
-              </div>
-            </div>
+        <td class="sets-td sets-td-desc" data-sets-col="0">
+          <span class="sets-cell-desc sets-cell-open-set" role="link" tabindex="0"
+                data-set-panel-url="{{ url_for('set_panel', set_id=s.id) }}"
+                title="View Set">{{ s.description if s.description else '—' }}</span>
+        </td>
+        <td class="sets-td sets-td-tunes sets-col-tunes-cell" data-sets-col="1">
+          <span class="sets-col-tunes">{% if s.tunes_names %}{{ s.tunes_names }}{% endif %}</span>
+        </td>
+        <td class="sets-td sets-td-type{% if not s.type %} sets-td-type--empty{% endif %}" data-sets-col="2">
+          <div class="sets-col-type{% if not s.type %} sets-col-type--empty{% endif %}">
+            {% if s.type %}<span class="badge badge-type">{{ s.type }}</span>{% else %}<span class="sets-cell-empty">—</span>{% endif %}
+          </div>
+        </td>
+        <td class="sets-td sets-td-last" data-sets-col="3">
+          <span class="sets-col-last-practiced">{% if s.last_practiced %}{{ s.last_practiced|practice_datetime_no_seconds }}{% endif %}</span>
+        </td>
+        <td class="sets-td sets-td-days" data-sets-col="4" data-days-sort="{% if s.days_since_last is not none %}{{ s.days_since_last }}{% endif %}">
+          <div class="sets-col-days-since-wrap">
+            <span class="sets-days-since-desktop" aria-label="{% if s.days_since_last is not none %}{{ s.days_since_last }} days since last played{% else %}Never practiced{% endif %}">{% if s.days_since_last is not none %}{{ s.days_since_last }}{% else %}—{% endif %}</span>
+            <span class="sets-days-since-mobile card-days-since{% if not s.last_practiced %} sets-days-since-mobile--never{% endif %}" title="{% if s.last_practiced %}Last played: {{ s.last_practiced|practice_datetime_no_seconds }}{% else %}Never practiced{% endif %}" aria-label="{% if s.days_since_last is not none %}{{ s.days_since_last }} days since last played{% else %}Never practiced{% endif %}">
+              <svg class="sets-days-since-hourglass" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+              </svg>
+              <span class="card-days-since-num sets-days-since-num">{% if s.days_since_last is not none %}{{ s.days_since_last }}{% else %}—{% endif %}</span>
+            </span>
+          </div>
+        </td>
+        <td class="sets-td sets-td-practice sets-cell-practice-wrap col-set-practice">
+          <div class="sets-col-practice-inner">
+            <button type="button" class="btn btn-xs btn-practiced set-practiced-btn"
+                    data-practice-url="{{ url_for('record_set_practice', set_id=s.id) }}"
+                    title="Log practice for this set"
+                    aria-label="Log practice for this set{% if s.description %}: {{ s.description|e }}{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              Practiced
+            </button>
           </div>
         </td>
       </tr>
@@ -93,13 +107,7 @@
   </div>
 </div>
 {% else %}
-<p class="empty-hint">
-  {% if has_sets_in_db and set_type_filter %}
-    No sets match this type.
-  {% else %}
-    No sets yet. Use <strong>+ Add</strong> above to create one.
-  {% endif %}
-</p>
+<p class="empty-hint">No sets yet. Use <strong>+ Add</strong> above to create one.</p>
 {% endif %}
 
 <div id="setPracticeConfirmBackdrop" class="tune-modal-backdrop set-practice-confirm-backdrop" hidden aria-hidden="true">
@@ -123,6 +131,16 @@
   (function () {
     const tbody = document.querySelector('#setsTable tbody');
     if (!tbody) return;
+
+    function formatSetLastDisplayed(raw) {
+      if (raw == null || raw === '') return '';
+      let s = String(raw).trim();
+      if (!s) return '';
+      if (s.indexOf('T') !== -1) s = s.replace('T', ' ', 1);
+      if (s.length >= 16 && s[10] === ' ') return s.slice(0, 16);
+      if (s.length >= 10) return s.slice(0, 10);
+      return s;
+    }
 
     const headers = document.querySelectorAll('#setsTable th.sortable');
     let sortCol = null;
@@ -159,7 +177,23 @@
       }
       const lastP = el.querySelector('.sets-col-last-practiced');
       if (lastP) return lastP.textContent.trim().toLowerCase();
+      if (el.hasAttribute('data-days-sort')) {
+        const raw = el.getAttribute('data-days-sort') || '';
+        if (raw === '') return '\uffff';
+        const n = parseInt(raw, 10);
+        return Number.isNaN(n) ? '\uffff' : String(n).padStart(8, '0');
+      }
       return el.textContent.trim().toLowerCase();
+    }
+
+    function daysSinceSortMeta(row) {
+      const el = row.querySelector('[data-sets-col="4"]');
+      if (!el) return { never: true, n: 0 };
+      const raw = el.getAttribute('data-days-sort');
+      if (raw === null || raw === '') return { never: true, n: 0 };
+      const n = parseInt(raw, 10);
+      if (Number.isNaN(n)) return { never: true, n: 0 };
+      return { never: false, n };
     }
 
     function sortTable(colIdx) {
@@ -176,6 +210,16 @@
 
       const rows = Array.from(tbody.querySelectorAll('tr'));
       rows.sort((a, b) => {
+        if (colIdx === 4) {
+          const ak = daysSinceSortMeta(a);
+          const bk = daysSinceSortMeta(b);
+          if (ak.never !== bk.never) {
+            if (sortAsc) return ak.never ? 1 : -1;
+            return ak.never ? -1 : 1;
+          }
+          const cmp = ak.n - bk.n;
+          return sortAsc ? cmp : -cmp;
+        }
         const av = getCellText(a, colIdx);
         const bv = getCellText(b, colIdx);
         if (av < bv) return sortAsc ? -1 : 1;
@@ -222,7 +266,7 @@
 
       let visible = 0;
       tbody.querySelectorAll('tr').forEach(row => {
-        const text = [0, 1, 2, 3]
+        const text = [0, 1, 2, 3, 4]
           .map(col => {
             const el = row.querySelector('[data-sets-col="' + col + '"]');
             return el ? el.textContent.trim() : '';
@@ -289,7 +333,28 @@
             if (data.date) {
               const row = btn.closest('tr');
               const lastEl = row?.querySelector('.sets-col-last-practiced');
-              if (lastEl) lastEl.textContent = data.date;
+              const lastShown = formatSetLastDisplayed(data.date);
+              if (lastEl) lastEl.textContent = lastShown;
+              if (row && typeof data.days_since_last === 'number') {
+                const daysTd = row.querySelector('td[data-sets-col="4"]');
+                if (daysTd) daysTd.setAttribute('data-days-sort', String(data.days_since_last));
+                const daysWrap = row.querySelector('.sets-col-days-since-wrap');
+                if (daysWrap) {
+                  const desk = daysWrap.querySelector('.sets-days-since-desktop');
+                  if (desk) {
+                    desk.textContent = String(data.days_since_last);
+                    desk.setAttribute('aria-label', `${data.days_since_last} days since last played`);
+                  }
+                  const mob = daysWrap.querySelector('.sets-days-since-mobile');
+                  if (mob) {
+                    mob.classList.remove('sets-days-since-mobile--never');
+                    mob.setAttribute('title', `Last played: ${lastShown}`);
+                    mob.setAttribute('aria-label', `${data.days_since_last} days since last played`);
+                  }
+                  const numEl = daysWrap.querySelector('.sets-days-since-num');
+                  if (numEl) numEl.textContent = String(data.days_since_last);
+                }
+              }
             }
           }
         });

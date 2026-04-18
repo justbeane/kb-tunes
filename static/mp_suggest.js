@@ -2,6 +2,8 @@
  * Text field + filtering suggestion list (DB-driven values).
  * No row is keyboard-highlighted until ArrowDown; Enter or Tab applies the
  * highlighted row or closes the menu; mousedown on a row picks and closes.
+ * Non-cell fields: unknown typed values are kept (trimmed), merged into the
+ * local suggestion list, and Enter blurs so autosave can persist (e.g. modal).
  * Table cells: Enter blurs to commit after picking.
  */
 (function () {
@@ -30,16 +32,7 @@
       var closing = activeWrap;
       hideActiveMenu();
       if (!closing.classList.contains('mp-suggest--cell')) {
-        var inp = closing._mpInput;
-        var items = closing._mpAllItems;
-        if (inp && items) {
-          var next = canonicalOrEmpty(inp.value, items);
-          if (next !== inp.value) {
-            inp.value = next;
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }
+        if (closing._mpApplyResolved) closing._mpApplyResolved();
       }
     },
     true
@@ -80,6 +73,14 @@
     return '';
   }
 
+  /** Known list value (correct casing) or trimmed free text. */
+  function resolvedValue(raw, allItems) {
+    var t = String(raw || '').trim();
+    if (!t) return '';
+    var c = canonicalOrEmpty(raw, allItems);
+    return c || t;
+  }
+
   function mpSuggestAttach(wrap, input, menu, items) {
     var all = normalizeList(items);
     wrap._mpAllItems = all;
@@ -97,6 +98,33 @@
       tableWrap && tableWrap.querySelector(':scope > .table-wrap__inner');
     var tableScrollHost = tableInner || tableWrap;
     var CELL_MAX = 5;
+
+    function rememberFreeValue(val) {
+      var t = String(val || '').trim();
+      if (!t) return;
+      var low = t.toLowerCase();
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].toLowerCase() === low) return;
+      }
+      all.push(t);
+      all.sort(function (a, b) {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+      });
+      wrap._mpAllItems = all;
+    }
+
+    wrap._mpApplyResolved = function () {
+      if (isCell) return;
+      var next = resolvedValue(input.value, all);
+      if (next !== input.value) {
+        input.value = next;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (next && canonicalOrEmpty(next, all) === '') {
+        rememberFreeValue(next);
+      }
+    };
 
     function positionCellMenu() {
       if (!isCell || menu.hidden) return;
@@ -211,12 +239,7 @@
       if (wrap._mpPickingFromMenu) return;
       if (activeWrap === wrap) hideActiveMenu();
       if (isCell) return;
-      var next = canonicalOrEmpty(input.value, all);
-      if (next !== input.value) {
-        input.value = next;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      wrap._mpApplyResolved();
     });
 
     input.addEventListener('keydown', function (e) {
@@ -249,12 +272,17 @@
         wrap._mpSkipOpen = true;
         if (!menu.hidden && activeIdx >= 0 && opts[activeIdx]) {
           input.value = opts[activeIdx].dataset.value;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (!isCell) {
+          input.value = resolvedValue(input.value, all);
         }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
         hideActiveMenu();
         endPickSkipOpen();
-        if (isCell) input.blur();
+        if (!isCell && input.value && canonicalOrEmpty(input.value, all) === '') {
+          rememberFreeValue(input.value);
+        }
+        input.blur();
         return;
       }
       if (e.key === 'Tab') {

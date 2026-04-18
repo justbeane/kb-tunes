@@ -807,34 +807,52 @@
       }
 
       const row = table.querySelector('tbody tr[data-id="' + tuneId + '"]');
-      if (!row) return;
+      const pgCard = document.querySelector(
+        '#practiceGroupCardGrid .tune-card[data-tune-id="' + tuneId + '"]'
+      );
+      if (!row && !pgCard) return;
 
       const nameInp = form.querySelector('#tune_name_field');
       if (nameInp) {
-        const cell = row.querySelector('.cell-edit[data-field="name"]');
+        const cell = row && row.querySelector('.cell-edit[data-field="name"]');
         if (cell) cell.textContent = nameInp.value.trim();
+        const titleEl = pgCard && pgCard.querySelector('.card-title-text');
+        if (titleEl) titleEl.textContent = nameInp.value.trim();
       }
 
       const tt = form.querySelector('#tune_tune_type');
       if (tt) {
-        const inp = row.querySelector('input[data-field="tune_type"]');
+        const inp = row && row.querySelector('input[data-field="tune_type"]');
         if (inp) inp.value = tt.value.trim();
       }
 
       const keyInp = form.querySelector('#tune_key');
       if (keyInp) {
-        const inp = row.querySelector('input[data-field="key"]');
+        const inp = row && row.querySelector('input[data-field="key"]');
         if (inp) inp.value = keyInp.value.trim();
       }
 
       const composerInp = form.querySelector('#tune_composer');
       if (composerInp) {
-        const cell = row.querySelector('.cell-edit[data-field="composer"]');
+        const cell = row && row.querySelector('.cell-edit[data-field="composer"]');
         if (cell) cell.textContent = composerInp.value.trim();
+        if (pgCard) {
+          const badges = pgCard.querySelector('.card-badges');
+          if (badges) {
+            const c = composerInp.value.trim();
+            badges.replaceChildren();
+            if (c) {
+              const span = document.createElement('span');
+              span.className = 'badge badge-composer';
+              span.textContent = c;
+              badges.appendChild(span);
+            }
+          }
+        }
       }
 
       const lessonsTa = form.querySelector('#tune_lessons');
-      const lesCell = row.querySelector('.col-lessons .lessons-table-display');
+      const lesCell = row && row.querySelector('.col-lessons .lessons-table-display');
       if (lessonsTa && lesCell) {
         lesCell.replaceChildren();
         const lines = lessonsTa.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -855,7 +873,7 @@
       }
 
       const pgHiddens = form.querySelectorAll('.mp-practice-groups-hiddens input[name="practice_group"]');
-      const pgCell = row.querySelector('.col-practice-groups .practice-groups-table-display');
+      const pgCell = row && row.querySelector('.col-practice-groups .practice-groups-table-display');
       if (pgCell) {
         const vals = Array.from(pgHiddens)
           .map(inp => inp.value.trim())
@@ -910,9 +928,11 @@
       if (typeInp) {
         const typeCell = row.querySelector('.sets-col-type');
         if (typeCell) {
+          const typeTd = typeCell.closest('.sets-td-type');
           const t = typeInp.value.trim();
           typeCell.textContent = '';
           typeCell.classList.toggle('sets-col-type--empty', !t);
+          if (typeTd) typeTd.classList.toggle('sets-td-type--empty', !t);
           if (t) {
             const badge = document.createElement('span');
             badge.className = 'badge badge-type';
@@ -1015,17 +1035,6 @@
           panel.classList.toggle('tune-panel-tabpanel--active', show);
           panel.hidden = !show;
         });
-        if (name === 'files') {
-          requestAnimationFrame(() => {
-            const filesPanel = root.querySelector('.tune-panel-tabpanel[data-panel="files"]');
-            if (!filesPanel || filesPanel.hidden) return;
-            filesPanel.querySelectorAll('audio, video').forEach((el) => {
-              try {
-                el.load();
-              } catch (e) {}
-            });
-          });
-        }
       }
       tabs.forEach(tab => {
         tab.addEventListener('click', () => activate(tab.dataset.tab));
@@ -1037,6 +1046,23 @@
 
       mpClearTunePickerOutsideListener();
       mpInitTunePanelTabs(tuneModalBody);
+
+      tuneModalBody.querySelectorAll('.tune-panel-nested-open[data-panel-url]').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const url = a.getAttribute('data-panel-url');
+          if (url && window.mpOpenTuneModal) window.mpOpenTuneModal(url);
+        });
+      });
+      tuneModalBody.querySelectorAll('.tune-panel-nested-open[data-set-panel-url]').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const url = a.getAttribute('data-set-panel-url');
+          if (url && window.mpOpenSetModal) window.mpOpenSetModal(url);
+        });
+      });
 
       const nameField = tuneModalBody.querySelector('#tune_name_field');
       const panelTitleText = tuneModalBody.querySelector('.tune-panel-modal-title-text');

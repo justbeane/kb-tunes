@@ -1890,6 +1890,80 @@ html[data-mp-bold-card-titles="on"] .tune-card .card-title {
   margin: 0.65rem 0 0.8rem;
 }
 
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-section {
+  margin: 0.85rem 0 0;
+  min-width: 0;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-heading {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-table-wrap {
+  overflow-x: auto;
+  max-height: min(28rem, 56vh);
+  overflow-y: auto;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-table {
+  font-size: 0.8rem;
+  margin: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-table th,
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-table td {
+  padding: 0.4rem 0.5rem;
+  vertical-align: top;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-table th {
+  font-size: 0.68rem;
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  z-index: 1;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-col-set {
+  width: 46%;
+  min-width: 0;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-col-tunes {
+  width: auto;
+  min-width: 0;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-col-days {
+  width: 2.85rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-tunes-cell {
+  line-height: 1.45;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-days-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tune-modal-body:has(#tuneEditForm) .tune-panel-sets-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .tune-modal-body:has(#tuneEditForm) .tune-panel-files-section {
   margin: 0;
   min-width: 0;
@@ -2738,94 +2812,212 @@ h3.set-panel-section-label {
   font-size: 0.95rem;
 }
 
+/* Sets page: Asc/Desc last-played toggle is mobile-only (see @media max-width 768px). */
+.page-header--sets .sets-played-order-form {
+  display: none;
+  margin: 0;
+}
+
+/* Practice group /table: mobile-only title, order toggle, cards (see @media). */
+.practice-group-mobile-page-title {
+  display: none;
+}
+
+.practice-group-played-order-form {
+  display: none;
+  margin: 0;
+}
+
+.practice-group-mobile-card-grid {
+  display: none !important;
+}
+
+.page-header--sets .sets-order-toggle,
+.practice-group-played-order-form .sets-order-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.page-header--sets .sets-order-btn,
+.practice-group-played-order-form .sets-order-btn {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 0.32rem 0.65rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.page-header--sets .sets-order-btn + .sets-order-btn,
+.practice-group-played-order-form .sets-order-btn + .sets-order-btn {
+  border-left: 1px solid var(--border);
+}
+
+.page-header--sets .sets-order-btn:hover,
+.practice-group-played-order-form .sets-order-btn:hover {
+  color: var(--text);
+  background: var(--surface-alt, var(--surface));
+}
+
+.page-header--sets .sets-order-btn--active,
+.practice-group-played-order-form .sets-order-btn--active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.page-header--sets .sets-order-btn:focus,
+.practice-group-played-order-form .sets-order-btn:focus {
+  outline: none;
+}
+
+.page-header--sets .sets-order-btn:focus-visible,
+.practice-group-played-order-form .sets-order-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+.page-header--sets .sets-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.page-header--sets .sets-filter-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.page-header--sets .sets-filter-strip .search-input {
+  flex: 1 1 12rem;
+  max-width: 26rem;
+  min-width: 8rem;
+}
+
 /* Sets table (same layout pattern as tune #tuneTable) */
 #setsTable.table-layout-modern {
   table-layout: fixed;
   width: 100%;
   max-width: 100%;
+  /* Column widths: <th> and matching <td> (six real cells; no inner grid on desktop) */
+  --sets-col-desc: calc(27% + 15px);
+  --sets-col-tunes: calc(25% + 15px);
+  --sets-col-type: 4.75rem;
+  --sets-col-last: calc(11rem - 30px);
+  --sets-col-days: 3.75rem;
+  --sets-col-practice: 7.75rem;
 }
 
 #setsTable.table-layout-modern td {
   min-width: 0;
 }
 
-#setsTable.table-layout-modern tbody td.sets-unified-cell {
-  padding: 0;
+#setsTable.table-layout-modern tbody td.sets-td {
+  padding: 0.35rem 0.5rem;
   vertical-align: middle;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 #setsTable tbody tr.sets-table-row {
   cursor: pointer;
 }
 
-/* One logical row: inner grid lines up with desktop header columns */
-#setsTable.table-layout-modern .sets-row-inner {
-  display: grid;
-  grid-template-columns: minmax(11rem, 11rem) minmax(0, 1fr) minmax(4.5rem, auto) minmax(7rem, 7rem) minmax(7rem, 7rem);
+#setsTable.table-layout-modern .sets-td-desc {
+  min-width: 0;
+}
+
+#setsTable.table-layout-modern .sets-td-tunes {
+  min-width: 0;
+}
+
+#setsTable.table-layout-modern .sets-td-type .sets-col-type {
+  padding: 0;
+}
+
+#setsTable.table-layout-modern .sets-td-last {
+  text-align: left;
+}
+
+#setsTable.table-layout-modern .sets-td-last .sets-col-last-practiced {
+  display: inline-block;
+  min-width: 0;
+  padding-right: 0.35rem;
+}
+
+#setsTable.table-layout-modern .sets-td-days {
+  text-align: right;
+}
+
+#setsTable.table-layout-modern .sets-td-days .sets-col-days-since-wrap {
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-#setsTable.table-layout-modern .sets-cell-desc-wrap {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
-}
-
-#setsTable.table-layout-modern .sets-col-tunes-cell {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-}
-
-#setsTable.table-layout-modern .sets-col-type {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-#setsTable.table-layout-modern .sets-col-last-practiced {
-  grid-column: 4;
-  grid-row: 1;
-}
-
-#setsTable.table-layout-modern .sets-cell-practice-wrap {
-  grid-column: 5;
-  grid-row: 1;
+  padding: 0;
 }
 
 #setsTable.table-layout-modern thead th[data-col="0"] {
-  width: 11rem;
-  min-width: 11rem;
+  width: var(--sets-col-desc);
+  min-width: 11.5rem;
 }
 
-/* Tunes: flexible — remaining width (table-layout: fixed) */
 #setsTable.table-layout-modern thead th[data-col="1"] {
-  min-width: 0;
-  width: auto;
+  width: var(--sets-col-tunes);
+  min-width: 7.5rem;
 }
 
 #setsTable.table-layout-modern thead th[data-col="2"] {
-  width: 4.5rem;
+  width: var(--sets-col-type);
   text-align: left;
 }
 
 #setsTable.table-layout-modern thead th[data-col="3"] {
-  width: 7rem;
+  width: var(--sets-col-last);
   text-align: left;
 }
 
-#setsTable.table-layout-modern .sets-cell-desc-wrap .sets-cell-desc {
+#setsTable.table-layout-modern thead th[data-col="4"] {
+  width: var(--sets-col-days);
+  min-width: 3.25rem;
+  text-align: right;
+}
+
+#setsTable.table-layout-modern .sets-td-desc .sets-cell-desc {
   padding-left: 0.5rem;
 }
 
 #setsTable.table-layout-modern thead th.col-set-practice {
-  width: 7rem;
-  min-width: 7rem;
-  padding: 0.65rem 16px;
+  width: var(--sets-col-practice);
+  min-width: var(--sets-col-practice);
+  padding: 0.65rem 12px;
   text-align: center;
   box-sizing: border-box;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  vertical-align: bottom;
+}
+
+#setsTable.table-layout-modern thead th.sets-th-practice {
+  white-space: nowrap;
 }
 
 #tuneTable.table-layout-modern thead th.col-tune-practice {
@@ -2839,10 +3031,10 @@ h3.set-panel-section-label {
 
 /* Inset via inner flex: cell padding is unreliable with border-collapse: collapse. */
 #setsTable.table-layout-modern .sets-cell-practice-wrap {
-  padding: 0;
+  padding: 0.35rem 0.25rem;
   vertical-align: middle;
-  min-width: 7rem;
-  justify-self: center;
+  min-width: var(--sets-col-practice);
+  text-align: center;
 }
 
 #tuneTable.table-layout-modern td.col-tune-practice {
@@ -2977,6 +3169,26 @@ h3.set-panel-section-label {
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+}
+
+#setsTable .sets-col-days-since-wrap {
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#setsTable .sets-days-since-desktop {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+#setsTable .sets-days-since-mobile {
+  display: none;
+}
+
+#setsTable .sets-days-since-mobile--never .sets-days-since-hourglass {
+  display: none;
 }
 
 /* Shown only on small screens — see @media (max-width: 768px) */
@@ -3858,24 +4070,6 @@ footer {
 }
 
 /* Practice groups: fixed vocabulary, multi-select in forms and table */
-.practice-groups-fieldset {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.65rem 0.85rem 0.75rem;
-  margin: 0;
-}
-.practice-groups-legend {
-  padding: 0 0.35rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-.practice-groups-legend-spacer {
-  min-height: 0.55rem;
-  margin-bottom: 0.35rem;
-}
 .mp-practice-groups {
   display: flex;
   flex-direction: column;
@@ -4871,14 +5065,17 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
  * Name width floor; table page toolbar — search grows, Add a bit wider.
  */
 @media (max-width: 768px) {
-  /* Sets page: row 1 = title + count; row 2 = type filter (left) + search / add (right) */
+  /* Sets page: row 1 = title + count; row 2 = Asc/Desc + add; row 3 = filter */
   .page-header--sets.page-header {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr auto;
     gap: 0.65rem 0.75rem;
     align-items: center;
   }
-  .page-header--sets > .table-toolbar-left {
+  .page-header--sets > .sets-toolbar-start {
+    display: contents;
+  }
+  .page-header--sets > .sets-toolbar-end {
     display: contents;
   }
   .page-header--sets h2 {
@@ -4891,16 +5088,37 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
     grid-row: 1;
     justify-self: end;
   }
-  .page-header--sets .table-type-filter-form {
+  .page-header--sets .sets-played-order-form {
+    display: block;
     grid-column: 1;
     grid-row: 2;
+    justify-self: start;
+    align-self: center;
   }
-  .page-header--sets > .table-controls--right {
+  .page-header--sets #openCreateSetModalMain {
     grid-column: 2;
     grid-row: 2;
+    justify-self: end;
+    flex-shrink: 0;
+    min-width: 5.5rem;
+    padding-inline: 1.1rem;
+  }
+  .page-header--sets .sets-filter-strip {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     min-width: 0;
     flex: initial;
+    justify-content: flex-start;
+  }
+  .page-header--sets .sets-filter-strip .search-input {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    width: auto;
   }
 
   .page-header--table .table-controls--right {
@@ -4918,6 +5136,42 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
     flex-shrink: 0;
     min-width: 5.5rem;
     padding-inline: 1.1rem;
+  }
+
+  /* Table view filtered by practice group: title + Asc/Desc + cards (Tunes-style). */
+  .page-header--practice-group.page-header--table {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .practice-group-mobile-page-title {
+    display: block;
+    width: 100%;
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    line-height: 1.25;
+  }
+
+  .practice-group-played-order-form {
+    display: block;
+    width: 100%;
+  }
+
+  .table-toolbar-group-label--desktop-only {
+    display: none !important;
+  }
+
+  .practice-group-mobile-card-grid {
+    display: grid !important;
+    width: 100%;
+    margin-bottom: 0.65rem;
+  }
+
+  .table-wrap--practice-group-desktop {
+    display: none !important;
   }
 
   .table-wrap #tuneTable.table-layout-modern {
@@ -5024,7 +5278,7 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
     min-width: 0;
   }
 
-  /* Sets table: caption “sets”; one <td> per set — inner grid stacks on small screens */
+  /* Sets table: caption “sets”; six <td>s per row — grid stacks on small screens */
   .sets-table-caption {
     display: block;
     caption-side: top;
@@ -5055,79 +5309,85 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
     display: block;
   }
   #setsTable.table-layout-modern tbody tr.sets-table-row {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-  }
-  #setsTable.table-layout-modern tbody td.sets-unified-cell {
-    display: block;
-    width: 100% !important;
-    max-width: none !important;
-    padding: 0.5rem 0.75rem 0.65rem;
-    border-bottom: none;
-    box-sizing: border-box;
-  }
-  #setsTable.table-layout-modern .sets-row-inner {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto auto;
     gap: 0.35rem 0.65rem;
     align-items: start;
+    width: 100%;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    padding: 0.5rem 0.75rem 0.65rem;
   }
-  #setsTable.table-layout-modern .sets-cell-desc-wrap {
+  #setsTable.table-layout-modern tbody tr.sets-table-row > td {
+    display: block;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    border: none;
+    vertical-align: initial;
+  }
+  #setsTable.table-layout-modern .sets-td-desc {
     grid-column: 1;
     grid-row: 1;
     min-width: 0;
-    padding: 0;
   }
-  #setsTable.table-layout-modern .sets-col-type:not(.sets-col-type--empty) {
+  #setsTable.table-layout-modern .sets-td-type:not(.sets-td-type--empty) {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
-    align-self: start;
-    padding: 0;
     text-align: right;
   }
-  #setsTable.table-layout-modern .sets-col-type--empty {
-    display: none;
+  #setsTable.table-layout-modern .sets-td-type--empty {
+    display: none !important;
   }
-  #setsTable.table-layout-modern .sets-row-inner:has(.sets-col-type--empty) .sets-cell-desc-wrap {
+  #setsTable.table-layout-modern tr.sets-table-row:has(.sets-td-type--empty) .sets-td-desc {
     grid-column: 1 / -1;
   }
-  #setsTable.table-layout-modern .sets-col-tunes-cell {
+  #setsTable.table-layout-modern .sets-td-tunes {
     grid-column: 1 / -1;
     grid-row: 2;
-    padding: 0.1rem 0 0.25rem;
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.25rem !important;
   }
-  #setsTable.table-layout-modern .sets-cell-practice-wrap {
+  #setsTable.table-layout-modern .sets-td-last {
+    display: none !important;
+  }
+  #setsTable.table-layout-modern .sets-td-practice {
     grid-column: 1;
     grid-row: 3;
     justify-self: start;
     align-self: center;
-    min-width: 0;
-    padding: 0;
+    text-align: left;
   }
-  #setsTable.table-layout-modern .sets-col-last-practiced {
+  #setsTable.table-layout-modern .sets-td-days {
     grid-column: 2;
     grid-row: 3;
     justify-self: end;
     align-self: center;
     text-align: right;
+  }
+  #setsTable.table-layout-modern .sets-col-days-since-wrap {
     padding: 0;
   }
-  #setsTable.table-layout-modern .sets-cell-practice-wrap .sets-col-practice-inner {
+  #setsTable.table-layout-modern .sets-days-since-desktop {
+    display: none;
+  }
+  #setsTable.table-layout-modern .sets-days-since-mobile {
+    display: inline-flex;
+  }
+  #setsTable.table-layout-modern .sets-td-practice .sets-col-practice-inner {
     justify-content: flex-start;
     padding: 0;
     white-space: normal;
   }
-  #setsTable.table-layout-modern .sets-cell-desc-wrap .sets-cell-desc {
+  #setsTable.table-layout-modern .sets-td-desc .sets-cell-desc {
     padding: 0;
     font-size: 0.92rem;
     font-weight: 600;
   }
-  #setsTable.table-layout-modern .sets-col-tunes-cell .sets-col-tunes {
+  #setsTable.table-layout-modern .sets-td-tunes .sets-col-tunes {
     font-size: 0.82rem;
     color: var(--text-muted);
     line-height: 1.45;
