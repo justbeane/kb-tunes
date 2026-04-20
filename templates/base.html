@@ -370,6 +370,20 @@
     </div>
   </div>
 
+  <!-- Set practice: log set (+ optional tune rows) — used from Sets table and View Set modal -->
+  <div id="setPracticeConfirmBackdrop" class="tune-modal-backdrop set-practice-confirm-backdrop" hidden aria-hidden="true">
+    <div class="tune-modal-dialog set-practice-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="setPracticeConfirmTitle" tabindex="-1">
+      <button type="button" class="tune-modal-close" id="setPracticeConfirmClose" aria-label="Close">&times;</button>
+      <div class="tune-modal-body">
+        <h2 class="set-modal-title" id="setPracticeConfirmTitle">Set tunes as practiced?</h2>
+        <div class="tune-modal-actions set-practice-confirm-actions">
+          <button type="button" class="btn btn-secondary" id="setPracticeConfirmNo">No</button>
+          <button type="button" class="btn btn-primary" id="setPracticeConfirmYes">Yes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Delete confirmation (replaces window.confirm for destructive actions) -->
   <div id="mpConfirmBackdrop" class="tune-modal-backdrop mp-confirm-backdrop" hidden aria-hidden="true">
     <div class="tune-modal-dialog mp-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="mpConfirmMessage" tabindex="-1">
@@ -800,6 +814,107 @@
       }
     });
 
+    const setPracticeBackdrop = document.getElementById('setPracticeConfirmBackdrop');
+    const setPracticeCloseBtn = document.getElementById('setPracticeConfirmClose');
+    const setPracticeYesBtn = document.getElementById('setPracticeConfirmYes');
+    const setPracticeNoBtn = document.getElementById('setPracticeConfirmNo');
+    let setPracticePending = null;
+
+    function mpFormatSetLastDisplayed(raw) {
+      if (raw == null || raw === '') return '';
+      let s = String(raw).trim();
+      if (!s) return '';
+      if (s.indexOf('T') !== -1) s = s.replace('T', ' ', 1);
+      if (s.length >= 16 && s[10] === ' ') return s.slice(0, 16);
+      if (s.length >= 10) return s.slice(0, 10);
+      return s;
+    }
+
+    function mpCloseSetPracticeModal() {
+      if (setPracticeBackdrop) {
+        setPracticeBackdrop.hidden = true;
+        setPracticeBackdrop.setAttribute('aria-hidden', 'true');
+      }
+      setPracticePending = null;
+    }
+
+    function mpOpenSetPracticeModal(btn) {
+      if (!btn || !btn.dataset || !btn.dataset.practiceUrl) return;
+      setPracticePending = { btn, url: btn.dataset.practiceUrl };
+      if (setPracticeBackdrop) {
+        setPracticeBackdrop.hidden = false;
+        setPracticeBackdrop.setAttribute('aria-hidden', 'false');
+      }
+      setPracticeYesBtn?.focus();
+    }
+
+    function mpSubmitSetPractice(logTunes) {
+      if (!setPracticePending) return;
+      const { btn, url } = setPracticePending;
+      mpCloseSetPracticeModal();
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_tunes: logTunes }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) return;
+          btn.classList.add('practiced-flash');
+          setTimeout(() => btn.classList.remove('practiced-flash'), 900);
+          if (data.date) {
+            const row = btn.closest('#setsTable tbody tr');
+            const lastEl = row?.querySelector('.sets-col-last-practiced');
+            const lastShown = mpFormatSetLastDisplayed(data.date);
+            if (lastEl) lastEl.textContent = lastShown;
+            if (row && typeof data.days_since_last === 'number') {
+              const daysTd = row.querySelector('td[data-sets-col="4"]');
+              if (daysTd) daysTd.setAttribute('data-days-sort', String(data.days_since_last));
+              const daysWrap = row.querySelector('.sets-col-days-since-wrap');
+              if (daysWrap) {
+                const desk = daysWrap.querySelector('.sets-days-since-desktop');
+                if (desk) {
+                  desk.textContent = String(data.days_since_last);
+                  desk.setAttribute('aria-label', `${data.days_since_last} days since last played`);
+                }
+                const mob = daysWrap.querySelector('.sets-days-since-mobile');
+                if (mob) {
+                  mob.classList.remove('sets-days-since-mobile--never');
+                  mob.setAttribute('title', `Last played: ${lastShown}`);
+                  mob.setAttribute('aria-label', `${data.days_since_last} days since last played`);
+                }
+                const numEl = daysWrap.querySelector('.sets-days-since-num');
+                if (numEl) numEl.textContent = String(data.days_since_last);
+              }
+            }
+          }
+          window.mpSetsTableRefreshAfterModal?.();
+        });
+    }
+
+    setPracticeYesBtn?.addEventListener('click', () => mpSubmitSetPractice(true));
+    setPracticeNoBtn?.addEventListener('click', () => mpSubmitSetPractice(false));
+    setPracticeCloseBtn?.addEventListener('click', mpCloseSetPracticeModal);
+    setPracticeBackdrop?.addEventListener('click', (e) => {
+      if (e.target === setPracticeBackdrop) mpCloseSetPracticeModal();
+    });
+    setPracticeBackdrop?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        mpCloseSetPracticeModal();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.set-practiced-btn[data-practice-url]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      mpOpenSetPracticeModal(btn);
+    });
+
+    window.mpOpenSetPracticeModal = mpOpenSetPracticeModal;
+
     function mpSyncTuneTableRowFromModal() {
       const form = tuneModalBody.querySelector('#tuneEditForm');
       const table = document.getElementById('tuneTable');
@@ -1012,6 +1127,7 @@
 
     function mpCloseTuneModal(options) {
       if (!tuneModalBackdrop) return;
+      mpCloseSetPracticeModal();
       mpClearTunePickerOutsideListener();
       const wasNewSet = tuneModalBody.querySelector('#setEditForm')?.dataset.newSet === '1';
       tuneModalBackdrop.hidden = true;
@@ -2039,6 +2155,10 @@
       if (e.key !== 'Escape') return;
       if (mpConfirmBackdrop && !mpConfirmBackdrop.hidden) {
         mpCloseConfirmDialog(false);
+        return;
+      }
+      if (setPracticeBackdrop && !setPracticeBackdrop.hidden) {
+        mpCloseSetPracticeModal();
         return;
       }
       if (tuneModalBackdrop && !tuneModalBackdrop.hidden) {

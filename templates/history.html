@@ -60,7 +60,9 @@
 
 {% block content %}
 <div class="history-page page-header page-header--table page-header--history"
- data-history-kind="{{ history_kind }}">
+ data-history-kind="{{ history_kind }}"
+ data-api-tune-url="{{ url_for('update_practice_date', record_id=0) }}"
+ data-api-set-url="{{ url_for('update_set_practice_date', record_id=0) }}">
   <div class="table-toolbar-left">
     <h2 class="history-page-title">Practice History</h2>
     <div class="history-view-toggle" role="group" aria-label="History source">
@@ -237,8 +239,15 @@
       setTimeout(() => el.classList.remove('flash-ok', 'flash-err'), 1200);
     }
 
-    const practiceApiPath = (recordId) =>
-      historyKind === 'sets' ? `/api/set-practice/${recordId}` : `/api/practice/${recordId}`;
+    const tuneUrl0 = root?.dataset.apiTuneUrl || '';
+    const setUrl0 = root?.dataset.apiSetUrl || '';
+    const practiceApiPath = (recordId) => {
+      const base = historyKind === 'sets' ? setUrl0 : tuneUrl0;
+      if (base && /\/0$/.test(base)) return base.replace(/\/0$/, `/${recordId}`);
+      return historyKind === 'sets'
+        ? `/api/set-practice/${recordId}`
+        : `/api/practice/${recordId}`;
+    };
 
     function histDateApiValue(raw) {
       let v = String(raw ?? '').trim();

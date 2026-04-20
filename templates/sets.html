@@ -110,19 +110,6 @@
 <p class="empty-hint">No sets yet. Use <strong>+ Add</strong> above to create one.</p>
 {% endif %}
 
-<div id="setPracticeConfirmBackdrop" class="tune-modal-backdrop set-practice-confirm-backdrop" hidden aria-hidden="true">
-  <div class="tune-modal-dialog set-practice-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="setPracticeConfirmTitle" tabindex="-1">
-    <button type="button" class="tune-modal-close" id="setPracticeConfirmClose" aria-label="Close">&times;</button>
-    <div class="tune-modal-body">
-      <h2 class="set-modal-title" id="setPracticeConfirmTitle">Set tunes as practiced?</h2>
-      <div class="tune-modal-actions set-practice-confirm-actions">
-        <button type="button" class="btn btn-secondary" id="setPracticeConfirmNo">No</button>
-        <button type="button" class="btn btn-primary" id="setPracticeConfirmYes">Yes</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
   document.getElementById('openCreateSetModalMain')?.addEventListener('click', () => {
     window.mpOpenCreateSetModal?.();
@@ -131,16 +118,6 @@
   (function () {
     const tbody = document.querySelector('#setsTable tbody');
     if (!tbody) return;
-
-    function formatSetLastDisplayed(raw) {
-      if (raw == null || raw === '') return '';
-      let s = String(raw).trim();
-      if (!s) return '';
-      if (s.indexOf('T') !== -1) s = s.replace('T', ' ', 1);
-      if (s.length >= 16 && s[10] === ' ') return s.slice(0, 16);
-      if (s.length >= 10) return s.slice(0, 10);
-      return s;
-    }
 
     const headers = document.querySelectorAll('#setsTable th.sortable');
     let sortCol = null;
@@ -295,87 +272,6 @@
       filterInput.value = '';
       applyFilter();
       filterInput.focus();
-    });
-
-    const practiceBackdrop = document.getElementById('setPracticeConfirmBackdrop');
-    const practiceCloseBtn = document.getElementById('setPracticeConfirmClose');
-    const practiceYesBtn = document.getElementById('setPracticeConfirmYes');
-    const practiceNoBtn = document.getElementById('setPracticeConfirmNo');
-    let pendingPractice = null;
-
-    function openSetPracticeModal(btn) {
-      pendingPractice = { btn, url: btn.dataset.practiceUrl };
-      practiceBackdrop.hidden = false;
-      practiceBackdrop.setAttribute('aria-hidden', 'false');
-      practiceYesBtn.focus();
-    }
-
-    function closeSetPracticeModal() {
-      practiceBackdrop.hidden = true;
-      practiceBackdrop.setAttribute('aria-hidden', 'true');
-      pendingPractice = null;
-    }
-
-    function submitSetPractice(logTunes) {
-      if (!pendingPractice) return;
-      const { btn, url } = pendingPractice;
-      closeSetPracticeModal();
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ log_tunes: logTunes }),
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.ok) {
-            btn.classList.add('practiced-flash');
-            setTimeout(() => btn.classList.remove('practiced-flash'), 900);
-            if (data.date) {
-              const row = btn.closest('tr');
-              const lastEl = row?.querySelector('.sets-col-last-practiced');
-              const lastShown = formatSetLastDisplayed(data.date);
-              if (lastEl) lastEl.textContent = lastShown;
-              if (row && typeof data.days_since_last === 'number') {
-                const daysTd = row.querySelector('td[data-sets-col="4"]');
-                if (daysTd) daysTd.setAttribute('data-days-sort', String(data.days_since_last));
-                const daysWrap = row.querySelector('.sets-col-days-since-wrap');
-                if (daysWrap) {
-                  const desk = daysWrap.querySelector('.sets-days-since-desktop');
-                  if (desk) {
-                    desk.textContent = String(data.days_since_last);
-                    desk.setAttribute('aria-label', `${data.days_since_last} days since last played`);
-                  }
-                  const mob = daysWrap.querySelector('.sets-days-since-mobile');
-                  if (mob) {
-                    mob.classList.remove('sets-days-since-mobile--never');
-                    mob.setAttribute('title', `Last played: ${lastShown}`);
-                    mob.setAttribute('aria-label', `${data.days_since_last} days since last played`);
-                  }
-                  const numEl = daysWrap.querySelector('.sets-days-since-num');
-                  if (numEl) numEl.textContent = String(data.days_since_last);
-                }
-              }
-            }
-          }
-        });
-    }
-
-    document.querySelectorAll('.set-practiced-btn[data-practice-url]').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        openSetPracticeModal(btn);
-      });
-    });
-
-    practiceYesBtn?.addEventListener('click', () => submitSetPractice(true));
-    practiceNoBtn?.addEventListener('click', () => submitSetPractice(false));
-    practiceCloseBtn?.addEventListener('click', closeSetPracticeModal);
-    practiceBackdrop?.addEventListener('click', e => {
-      if (e.target === practiceBackdrop) closeSetPracticeModal();
-    });
-    practiceBackdrop?.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeSetPracticeModal();
     });
 
     window.mpSetsTableRefreshAfterModal = applyFilter;

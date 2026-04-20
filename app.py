@@ -2975,8 +2975,8 @@ def history_view():
 
 @app.route("/api/practice/<int:record_id>", methods=["POST"])
 def update_practice_date(record_id):
-    data = request.get_json()
-    value = data.get("value", "").strip()
+    data = request.get_json(silent=True) or {}
+    value = (data.get("value") or "").strip()
     norm = normalize_practice_datetime(value)
     if not norm:
         return {"error": "Invalid date or time"}, 400
@@ -2988,8 +2988,8 @@ def update_practice_date(record_id):
 
 @app.route("/api/set-practice/<int:record_id>", methods=["POST"])
 def update_set_practice_date(record_id):
-    data = request.get_json()
-    value = data.get("value", "").strip()
+    data = request.get_json(silent=True) or {}
+    value = (data.get("value") or "").strip()
     norm = normalize_practice_datetime(value)
     if not norm:
         return {"error": "Invalid date or time"}, 400

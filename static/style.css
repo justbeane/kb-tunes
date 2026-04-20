@@ -1756,6 +1756,26 @@ html[data-mp-bold-card-titles="on"] .tune-card .card-title {
   gap: 0.75rem;
   margin-top: 1rem;
 }
+
+.tune-modal-actions.tune-modal-actions--set-panel-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.tune-modal-actions.tune-modal-actions--set-panel-footer .form-actions-left {
+  justify-self: start;
+}
+
+.tune-modal-actions.tune-modal-actions--set-panel-footer .form-actions-center {
+  justify-self: center;
+}
+
+.tune-modal-actions.tune-modal-actions--set-panel-footer .form-actions-right {
+  justify-self: end;
+}
 .practice-stats-box--compact {
   padding: 0.5rem 0.65rem;
   margin-bottom: 0.75rem;
@@ -3072,8 +3092,9 @@ h3.set-panel-section-label {
   flex-shrink: 0;
 }
 
-/* Set practice confirm: compact dialog, lower on screen, centered actions */
+/* Set practice confirm: stacked above main tune/set modal (z-index 300) */
 .tune-modal-backdrop.set-practice-confirm-backdrop {
+  z-index: 400;
   align-items: flex-start;
   padding-top: min(32vh, 12rem);
 }
@@ -4458,19 +4479,19 @@ footer {
   min-width: calc(18em + 5px);
   max-width: calc(18em + 5px);
   box-sizing: border-box;
-  text-align: right;
+  text-align: left;
   vertical-align: middle;
 }
 
 #historyTable thead th.col-history-date {
-  text-align: right;
+  text-align: left;
 }
 
 /* Sort label + icon block fills the th so text-align matches body columns */
 #historyTable thead th.col-history-date .sortable-heading-inner {
   display: flex;
   width: 100%;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.175rem;
 }

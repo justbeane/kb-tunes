@@ -92,10 +92,25 @@
   {% endif %}
 </div>
 
-<div class="tune-modal-actions">
+<div class="tune-modal-actions tune-modal-actions--set-panel-footer">
   <div class="form-actions-left">
     <button type="button" id="setModalDeleteTrigger" class="btn btn-danger">Delete</button>
   </div>
+  {% if not is_new %}
+  <div class="form-actions-center">
+    <button type="button" class="btn btn-practiced set-practiced-btn"
+            data-practice-url="{{ url_for('record_set_practice', set_id=set_record.id) }}"
+            title="Log practice for this set"
+            aria-label="Log practice for this set{% if set_record.description %}: {{ set_record.description|e }}{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 6 9 17l-5-5"/>
+      </svg>
+      Practiced
+    </button>
+  </div>
+  {% else %}
+  <div class="form-actions-center" aria-hidden="true"></div>
+  {% endif %}
   <div class="form-actions-right">
     <button type="button" class="btn btn-secondary tune-modal-cancel-btn">Close</button>
   </div>
