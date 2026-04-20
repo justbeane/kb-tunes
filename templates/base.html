@@ -2097,7 +2097,6 @@
           tuneModalBody.innerHTML = html;
           tuneModalBackdrop.querySelector('[role="dialog"]')?.setAttribute('aria-label', 'Edit tune');
           mpBindTunePanel();
-          tuneModalBody.querySelector('#tune_name_field')?.focus();
         })
         .catch(() => {
           tuneModalBody.innerHTML = '<p class="tune-modal-error">Could not load tune.</p>';
@@ -2117,7 +2116,6 @@
           const title = tuneModalBody.querySelector('#setPanelTitle')?.textContent?.trim();
           tuneModalBackdrop.querySelector('[role="dialog"]')?.setAttribute('aria-label', title || 'Set');
           mpBindSetPanel();
-          tuneModalBody.querySelector('#set_edit_description')?.focus();
         })
         .catch(() => {
           tuneModalBody.innerHTML = '<p class="tune-modal-error">Could not load set.</p>';
