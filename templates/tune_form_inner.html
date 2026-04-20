@@ -1,5 +1,6 @@
 {# Shared edit/add fields. Expects: tune, action, tune_type_suggestions, key_suggestions, modal (bool). practice_groups from context. #}
-<form method="post" class="tune-form" id="tuneEditForm" action="{{ form_action }}">
+<form method="post" class="tune-form" id="tuneEditForm" action="{{ form_action }}"
+      {%- if tune %} data-tune-id="{{ tune.id }}" data-update-url="{{ url_for('update_tune_field', tune_id=tune.id) }}"{% endif %}>
   {% if modal %}
   <input type="hidden" name="modal" value="1" />
   {% endif %}

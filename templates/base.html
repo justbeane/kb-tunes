@@ -1081,9 +1081,9 @@
       nameField?.addEventListener('input', syncTunePanelHeading);
       nameField?.addEventListener('change', syncTunePanelHeading);
 
-      // ── Auto-save individual fields via /api/tune/<id> ──
-      const form   = tuneModalBody.querySelector('#tuneEditForm');
-      const tuneId = form ? new URL(form.action, location.href).pathname.split('/')[2] : null;
+      // ── Auto-save individual fields (URL from form data-update-url; works with SCRIPT_NAME / subpaths) ──
+      const form = tuneModalBody.querySelector('#tuneEditForm');
+      const tuneUpdateUrl = (form && form.dataset.updateUrl) ? form.dataset.updateUrl : '';
 
       function flashInput(el, ok) {
         el.classList.remove('flash-ok', 'flash-err');
@@ -1092,12 +1092,12 @@
       }
 
       function saveField(fieldName, value, el) {
-        if (!tuneId) return Promise.resolve(false);
+        if (!tuneUpdateUrl) return Promise.resolve(false);
         const payloadValue =
           fieldName === 'practice_group' && Array.isArray(value)
             ? value
             : String(value);
-        return fetch('/api/tune/' + tuneId, {
+        return fetch(tuneUpdateUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ field: fieldName, value: payloadValue }),
@@ -1146,7 +1146,7 @@
         const input = row.querySelector('.tune-panel-link-input');
         const slot = row.querySelector('.tune-panel-link-slot');
         const btn = row.querySelector('.tune-panel-link-edit-btn');
-        if (!field || !tuneId || !view || !edit || !input || !slot || !btn) return;
+        if (!field || !tuneUpdateUrl || !view || !edit || !input || !slot || !btn) return;
 
         function enterEdit() {
           input.dataset.originalValue = input.value;
@@ -1196,7 +1196,7 @@
 
       (function bindTunePanelNotes() {
         const wrap = tuneModalBody.querySelector('.tune-panel-notes-value');
-        if (!wrap || !tuneId) return;
+        if (!wrap || !tuneUpdateUrl) return;
         const view = wrap.querySelector('.tune-panel-notes-view');
         const edit = wrap.querySelector('.tune-panel-notes-edit');
         const ta = wrap.querySelector('.tune-panel-notes-input');
@@ -1369,7 +1369,7 @@
 
       const pgRoot = tuneModalBody.querySelector('.mp-practice-groups');
       const pgInput = pgRoot && pgRoot.querySelector('.mp-practice-groups-input');
-      if (pgRoot && tuneId) {
+      if (pgRoot && tuneUpdateUrl) {
         pgRoot.addEventListener('mp-practice-groups-change', (e) => {
           const vals = e.detail && Array.isArray(e.detail.values) ? e.detail.values : [];
           saveField('practice_group', vals, pgInput || pgRoot);

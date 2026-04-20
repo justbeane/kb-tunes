@@ -1,3 +1,4 @@
+import calendar
 import json
 import math
 import mimetypes
@@ -6,6 +7,7 @@ import re
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from flask import (
     Flask,
@@ -31,7 +33,10 @@ if _LEGACY_DB.exists() and not Path(DB_PATH).exists():
     _LEGACY_DB.rename(Path(DB_PATH))
 SETTINGS_PATH = str(_APP_ROOT / "settings.json")
 
-# Days since this date (UTC date) seed the daily header phrase selection.
+# IANA zone for all timestamps persisted in SQLite (wall time, DST-aware).
+DB_TIMEZONE = ZoneInfo("America/Chicago")
+
+# Days since this date (calendar date in US Central) seed the daily header phrase selection.
 HEADER_PHRASE_EPOCH = date(2020, 1, 1)
 
 # Fixed pool when settings["phrase_subset_override_enabled"] is true (header90% branch).
@@ -49,12 +54,33 @@ VALID_PHRASE_FREQUENCY_SEC = frozenset({1, 30, 60})
 
 
 def practice_timestamp_now() -> str:
-    """Local wall time for new practice rows (date + time, SQLite-friendly)."""
-    return datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+    """US Central wall time for new practice rows (date + time, SQLite-friendly)."""
+    return datetime.now(DB_TIMEZONE).replace(microsecond=0).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+
+def central_date_today() -> date:
+    """Current calendar date in US Central."""
+    return datetime.now(DB_TIMEZONE).date()
+
+
+def _central_now_minute() -> datetime:
+    """Naive Central wall clock truncated to the minute (refresh windows, stats)."""
+    return datetime.now(DB_TIMEZONE).replace(
+        second=0, microsecond=0, tzinfo=None
+    )
+
+
+def _julianday_anchor_sql() -> str:
+    """Central 'now' as YYYY-MM-DD HH:MM:SS for SQLite julianday(?)."""
+    return datetime.now(DB_TIMEZONE).replace(microsecond=0).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 
 def normalize_practice_datetime(value: str) -> str | None:
-    """Normalize date / datetime-local / 'YYYY-MM-DD HH:MM:SS' for storage."""
+    """Normalize date / datetime-local / 'YYYY-MM-DD HH:MM:SS' for storage (Central)."""
     if not value or not str(value).strip():
         return None
     v = str(value).strip()
@@ -325,15 +351,32 @@ def resync_practice_groups_from_csv(csv_path: Path | None = None) -> int:
     return updated
 
 
-# Strips leading "The " / "A " for natural title sorting
+# Strips leading "The " / "A " for natural title sorting.
+# Tuple: (label, months back from Central "today", or None = all time).
 PERIOD_OPTIONS = {
-    "1m":  ("1 Month",  "-1 month"),
-    "2m":  ("2 Months", "-2 months"),
-    "3m":  ("3 Months", "-3 months"),
-    "6m":  ("6 Months", "-6 months"),
-    "1y":  ("1 Year",   "-1 year"),
+    "1m":  ("1 Month",  1),
+    "2m":  ("2 Months", 2),
+    "3m":  ("3 Months", 3),
+    "6m":  ("6 Months", 6),
+    "1y":  ("1 Year",   12),
     "all": ("All Time", None),
 }
+
+
+def _add_calendar_months(d: date, delta_months: int) -> date:
+    total = d.year * 12 + (d.month - 1) + delta_months
+    y, m0 = divmod(total, 12)
+    month = m0 + 1
+    last = calendar.monthrange(y, month)[1]
+    return date(y, month, min(d.day, last))
+
+
+def central_period_start_date(period_key: str) -> date | None:
+    """First calendar day to include for /times-played period filters (US Central)."""
+    months_back = PERIOD_OPTIONS.get(period_key, PERIOD_OPTIONS["1m"])[1]
+    if months_back is None:
+        return None
+    return _add_calendar_months(central_date_today(), -int(months_back))
 
 SORT_NAME = """
     CASE
@@ -677,7 +720,7 @@ def pick_header_phrase_daily(
         k = min(PHRASE_VARIETY_POOL_CAP.get(v, 10), n)
     if k < 1:
         return None
-    days = (date.today() - HEADER_PHRASE_EPOCH).days
+    days = (central_date_today() - HEADER_PHRASE_EPOCH).days
     rng_day = random.Random(days)
     pool_main = rng_day.sample(phrases, k=k)
     outside = [p for p in phrases if p not in set(pool_main)]
@@ -712,7 +755,7 @@ def inject_tune_types():
 
     return {
         "distinct_tune_types": distinct_tune_types(),
-        "mp_server_today": date.today().isoformat(),
+        "mp_server_today": central_date_today().isoformat(),
         "mp_settings": settings,
         "practice_groups": PRACTICE_GROUPS,
         "mp_sidebar_practice_groups": sidebar_pg,
@@ -807,7 +850,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS phrases (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 body TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at TEXT NOT NULL
             )
         """)
         conn.execute("""
@@ -873,7 +916,7 @@ TUNES_WITH_STATS = """
            (SELECT MIN(p.date_played) FROM practice_history p WHERE p.tune_id = s.id) AS first_practiced,
            (SELECT MAX(p.date_played) FROM practice_history p WHERE p.tune_id = s.id) AS last_practiced,
            (SELECT CASE WHEN MAX(p.date_played) IS NULL THEN NULL
-                        ELSE CAST(ROUND(julianday('now') - julianday(MAX(p.date_played))) AS INTEGER)
+                        ELSE CAST(ROUND(julianday(?) - julianday(MAX(p.date_played))) AS INTEGER)
                    END
               FROM practice_history p WHERE p.tune_id = s.id) AS days_since_last
     FROM tunes s
@@ -995,7 +1038,7 @@ def index():
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         sql = TUNES_WITH_STATS + where + f" ORDER BY {order_sql}"
 
-        tunes = conn.execute(sql, params).fetchall()
+        tunes = conn.execute(sql, [_julianday_anchor_sql()] + params).fetchall()
 
     return render_template(
         "index.html",
@@ -1119,7 +1162,7 @@ def _tune_sets_for_panel(conn, tune_id: int) -> list[dict]:
         if lp:
             try:
                 days_since_last = (
-                    date.today() - date.fromisoformat(str(lp)[:10])
+                    central_date_today() - date.fromisoformat(str(lp)[:10])
                 ).days
             except ValueError:
                 pass
@@ -1250,7 +1293,7 @@ def _practice_stats(conn, tune_id):
     if lp:
         try:
             last = date.fromisoformat(lp[:10])
-            days_since_last = (date.today() - last).days
+            days_since_last = (central_date_today() - last).days
         except ValueError:
             pass
     return {
@@ -1303,7 +1346,7 @@ def record_set_practice(set_id):
                     (r["tune_id"], ts),
                 )
         conn.commit()
-    days_since = (date.today() - date.fromisoformat(ts[:10])).days
+    days_since = (central_date_today() - date.fromisoformat(ts[:10])).days
     return jsonify({"ok": True, "date": ts, "days_since_last": days_since})
 
 
@@ -1445,7 +1488,10 @@ def phrase_add():
         flash("Phrase cannot be empty.", "error")
         return redirect(url_for("phrases_view"))
     with get_db() as conn:
-        conn.execute("INSERT INTO phrases (body) VALUES (?)", (body,))
+        conn.execute(
+            "INSERT INTO phrases (body, created_at) VALUES (?, ?)",
+            (body, practice_timestamp_now()),
+        )
         conn.commit()
     flash("Phrase added.", "success")
     return redirect(url_for("phrases_view"))
@@ -1489,7 +1535,7 @@ def statistics_view():
 
 
 def _normalize_refresh_local_datetime(value: str) -> str | None:
-    """Local wall time as YYYY-MM-DDTHH:MM (datetime-local). Date-only → T00:00."""
+    """US Central wall time as YYYY-MM-DDTHH:MM (datetime-local). Date-only → T00:00."""
     s = (value or "").strip().replace(" ", "T", 1)
     if not s:
         return None
@@ -1610,7 +1656,7 @@ def _refresh_unique_tunes_alphabetical(
 
 def _statistics_refresh_series(conn: sqlite3.Connection) -> dict:
     """Per refresh_log row: labels, day span, distinct tunes, tunes/day (charts)."""
-    now = datetime.now().replace(second=0, microsecond=0)
+    now = _central_now_minute()
     now_sql = now.strftime("%Y-%m-%d %H:%M:%S")
     rows = conn.execute(
         "SELECT id, refresh_number, start_at, end_at FROM refresh_log "
@@ -1653,7 +1699,7 @@ def _statistics_refresh_series(conn: sqlite3.Connection) -> dict:
 
 @app.route("/refresh")
 def refresh_view():
-    now = datetime.now().replace(second=0, microsecond=0)
+    now = _central_now_minute()
     now_sql = now.strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         rows = conn.execute(
@@ -1687,7 +1733,7 @@ def refresh_view():
 @app.route("/api/refresh/<int:refresh_id>/detail", methods=["GET"])
 def api_refresh_detail(refresh_id: int):
     """JSON summary for a refresh period + unique tune names (A–Z)."""
-    now = datetime.now().replace(second=0, microsecond=0)
+    now = _central_now_minute()
     now_sql = now.strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         row = conn.execute(
@@ -1729,7 +1775,7 @@ def api_refresh_detail(refresh_id: int):
 
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh_create():
-    now = datetime.now().replace(second=0, microsecond=0)
+    now = _central_now_minute()
     at = now.strftime("%Y-%m-%dT%H:%M")
     with get_db() as conn:
         last = conn.execute(
@@ -2102,7 +2148,6 @@ def times_played():
         reset_bound = _last_reset_start_sqlite(conn)
         psr_frags, psr_params = _psr_sql_fragments(psr_filter, reset_bound)
 
-        _, sqlite_offset = PERIOD_OPTIONS.get(period, PERIOD_OPTIONS["1m"])
         order = (
             f"period_count DESC, {SORT_NAME} ASC"
             if sort == "most"
@@ -2117,11 +2162,12 @@ def times_played():
         params.extend(psr_params)
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        date_filter = (
-            f"AND date(p.date_played) >= date('now', '{sqlite_offset}')"
-            if sqlite_offset
-            else ""
-        )
+        period_start = central_period_start_date(period)
+        date_filter_sql = ""
+        period_params: list = []
+        if period_start is not None:
+            date_filter_sql = "AND date(p.date_played) >= ?"
+            period_params = [period_start.isoformat()]
 
         sql = f"""
             SELECT s.*,
@@ -2131,12 +2177,12 @@ def times_played():
             FROM tunes s
             LEFT JOIN practice_history p
                 ON p.tune_id = s.id
-               {date_filter}
+               {date_filter_sql}
             {where}
             GROUP BY s.id
             ORDER BY {order}
         """
-        tunes = conn.execute(sql, params).fetchall()
+        tunes = conn.execute(sql, period_params + params).fetchall()
 
     return render_template(
         "times_played.html",
@@ -2191,7 +2237,9 @@ def table_view():
 
         practice_group_label = None
         if filter_pg:
-            all_tunes = conn.execute(TUNES_WITH_STATS + order).fetchall()
+            all_tunes = conn.execute(
+                TUNES_WITH_STATS + order, (_julianday_anchor_sql(),)
+            ).fetchall()
             in_group = [
                 t
                 for t in all_tunes
@@ -2236,7 +2284,10 @@ def table_view():
             conditions.extend(psr_frags)
             params.extend(psr_params)
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-            tunes = conn.execute(TUNES_WITH_STATS + where + order, params).fetchall()
+            tunes = conn.execute(
+                TUNES_WITH_STATS + where + order,
+                [_julianday_anchor_sql()] + params,
+            ).fetchall()
             types_for_filter = types_for_filter_all
 
     tune_type_suggestions, key_suggestions = table_tune_key_suggestions(tunes)
@@ -2717,7 +2768,7 @@ def sets_view():
             if lp:
                 try:
                     days_since_last = (
-                        date.today() - date.fromisoformat(str(lp)[:10])
+                        central_date_today() - date.fromisoformat(str(lp)[:10])
                     ).days
                 except ValueError:
                     pass
