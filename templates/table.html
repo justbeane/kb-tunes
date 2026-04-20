@@ -5,31 +5,51 @@
 {% block content %}
 <div class="page-header page-header--table{% if practice_group_label %} page-header--practice-group{% endif %}">
   {% if practice_group_label %}
-  <h2 class="practice-group-mobile-page-title">{{ practice_group_label }}</h2>
-  <form method="get" action="{{ url_for('table_view') }}" class="practice-group-played-order-form" aria-label="Last played order">
-    <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
-    {% if tune_type %}<input type="hidden" name="tune_type" value="{{ tune_type }}" />{% endif %}
-    {% if psr_filter == 'psr' %}
-    <input type="hidden" name="psr" value="psr" />
-    {% elif psr_filter == 'not_psr' %}
-    <input type="hidden" name="psr" value="not_psr" />
-    {% endif %}
-    <div class="sets-order-toggle practice-group-order-toggle" role="group" aria-label="Sort by last played date and time">
-      <button type="submit" name="played" value="asc"
-              class="sets-order-btn{% if practice_group_played_order == 'asc' %} sets-order-btn--active{% endif %}"
-              aria-pressed="{{ 'true' if practice_group_played_order == 'asc' else 'false' }}">Asc</button>
-      <button type="submit" name="played" value="desc"
-              class="sets-order-btn{% if practice_group_played_order == 'desc' %} sets-order-btn--active{% endif %}"
-              aria-pressed="{{ 'true' if practice_group_played_order == 'desc' else 'false' }}">Desc</button>
-    </div>
-  </form>
+  <div class="practice-group-mobile-title-row">
+    <h2 class="practice-group-mobile-page-title">{{ practice_group_label }}</h2>
+    <span class="tune-count" id="visibleCount" data-visible-count>{{ tunes|length }}</span>
+  </div>
   {% endif %}
   <div class="table-toolbar-left">
+    {% if practice_group_label %}
+    <div class="practice-group-toolbar-filters">
+      <form method="get" action="{{ url_for('table_view') }}" class="practice-group-played-order-form" aria-label="Last played order">
+        <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
+        {% if tune_type %}<input type="hidden" name="tune_type" value="{{ tune_type }}" />{% endif %}
+        {% if psr_filter == 'psr' %}
+        <input type="hidden" name="psr" value="psr" />
+        {% elif psr_filter == 'not_psr' %}
+        <input type="hidden" name="psr" value="not_psr" />
+        {% endif %}
+        <div class="sets-order-toggle practice-group-order-toggle" role="group" aria-label="Sort by last played date and time">
+          <button type="submit" name="played" value="asc"
+                  class="sets-order-btn{% if practice_group_played_order == 'asc' %} sets-order-btn--active{% endif %}"
+                  aria-pressed="{{ 'true' if practice_group_played_order == 'asc' else 'false' }}">Asc</button>
+          <button type="submit" name="played" value="desc"
+                  class="sets-order-btn{% if practice_group_played_order == 'desc' %} sets-order-btn--active{% endif %}"
+                  aria-pressed="{{ 'true' if practice_group_played_order == 'desc' else 'false' }}">Desc</button>
+        </div>
+      </form>
+      <form method="get" action="{{ url_for('table_view') }}" class="table-type-filter-form">
+        <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
+        <input type="hidden" name="played" value="{{ practice_group_played_order }}" />
+        <select name="tune_type" class="filter-select" id="tableTypeSelect" aria-label="Type">
+          <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
+          {% for tt in types_for_filter %}
+            <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+          {% endfor %}
+        </select>
+        <select name="psr" class="filter-select" id="tablePsrSelect" aria-label="Practice since reset">
+          <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
+          <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
+          <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
+        </select>
+      </form>
+    </div>
+    <span class="table-toolbar-group-label table-toolbar-group-label--desktop-only" title="Filtered by practice group">{{ practice_group_label }}</span>
+    <span class="tune-count practice-group-count--desktop-only" data-visible-count>{{ tunes|length }}</span>
+    {% else %}
     <form method="get" action="{{ url_for('table_view') }}" class="table-type-filter-form">
-      {% if practice_group_label %}
-      <input type="hidden" name="practice_group" value="{{ practice_group_label }}" />
-      <input type="hidden" name="played" value="{{ practice_group_played_order }}" />
-      {% endif %}
       <select name="tune_type" class="filter-select" id="tableTypeSelect" aria-label="Type">
         <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
         {% for tt in types_for_filter %}
@@ -42,15 +62,13 @@
         <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
       </select>
     </form>
-    {% if practice_group_label %}
-    <span class="table-toolbar-group-label table-toolbar-group-label--desktop-only" title="Filtered by practice group">{{ practice_group_label }}</span>
+    <span class="tune-count" id="visibleCount" data-visible-count>{{ tunes|length }}</span>
     {% endif %}
-    <span class="tune-count" id="visibleCount">{{ tunes|length }}</span>
   </div>
   <div class="table-controls table-controls--right">
     <input type="search" id="tableFilter" class="search-input" placeholder="Filter rows…" autocomplete="off" />
     <button class="btn btn-ghost btn-secondary" id="clearFilter" style="display:none">Clear</button>
-    <a href="{{ url_for('add_tune') }}" class="btn btn-primary">+ Add</a>
+    <a href="{{ url_for('add_tune') }}" class="btn btn-primary{% if practice_group_label %} practice-group-header-add-btn{% endif %}">+ Add</a>
   </div>
 </div>
 
@@ -424,7 +442,7 @@
 
   const filterInput  = document.getElementById('tableFilter');
   const clearBtn     = document.getElementById('clearFilter');
-  const countEl      = document.getElementById('visibleCount');
+  const countNodes   = () => document.querySelectorAll('[data-visible-count]');
   const noResults    = document.getElementById('noResults');
   const pgCardGrid   = document.getElementById('practiceGroupCardGrid');
   const pgCards      = pgCardGrid ? Array.from(pgCardGrid.querySelectorAll('.tune-card')) : [];
@@ -458,7 +476,6 @@
       row.style.display = show ? '' : 'none';
       if (show && !usePgCards) visible++;
     });
-    }
 
     if (pgCards.length) {
       pgCards.forEach(card => {
@@ -469,7 +486,7 @@
       });
     }
 
-    if (countEl) countEl.textContent = String(visible);
+    countNodes().forEach(el => { el.textContent = String(visible); });
     if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
     updateStripes();
   }

@@ -39,30 +39,32 @@
         id="searchInput"
         autocomplete="off"
       />
-      <form method="get" action="{{ url_for('index') }}" class="index-filter-form" id="indexFilterForm">
-        <div class="index-filter-selects">
-          <select name="tune_type" class="filter-select" id="indexTypeSelect" aria-label="Type"
-                  onchange="this.form.submit()">
-            <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
-            {% for tt in types_for_filter %}
-              <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
-            {% endfor %}
-          </select>
-          <select name="psr" class="filter-select" id="indexPsrSelect" aria-label="Practice since reset"
-                  onchange="this.form.submit()">
-            <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
-            <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
-            <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
-          </select>
-        </div>
-        <input type="hidden" name="sort" value="{{ sort_key }}" />
-        <input type="hidden" name="search" value="{{ search }}" id="indexSearchHidden" />
-      </form>
-      <select id="sortSelect" class="filter-select" aria-label="Sort">
-        {% for key, (label, _) in sort_options.items() %}
-          <option value="{{ key }}" {% if sort_key == key %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+      <div class="index-header-filters-row">
+        <form method="get" action="{{ url_for('index') }}" class="index-filter-form" id="indexFilterForm">
+          <div class="index-filter-selects">
+            <select name="tune_type" class="filter-select" id="indexTypeSelect" aria-label="Type"
+                    onchange="this.form.submit()">
+              <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
+              {% for tt in types_for_filter %}
+                <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+              {% endfor %}
+            </select>
+            <select name="psr" class="filter-select" id="indexPsrSelect" aria-label="Practice since reset"
+                    onchange="this.form.submit()">
+              <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
+              <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
+              <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
+            </select>
+          </div>
+          <input type="hidden" name="sort" value="{{ sort_key }}" />
+          <input type="hidden" name="search" value="{{ search }}" id="indexSearchHidden" />
+        </form>
+        <select id="sortSelect" class="filter-select" aria-label="Sort">
+          {% for key, (label, _) in sort_options.items() %}
+            <option value="{{ key }}" {% if sort_key == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <a href="{{ url_for('add_tune') }}" class="btn btn-primary index-header-add-btn" aria-label="Add tune"><span class="index-header-add-label index-header-add-label--desktop">+ Add Tune</span><span class="index-header-add-label index-header-add-label--mobile">+ Add</span></a>
     </div>
   </div>

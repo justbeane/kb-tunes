@@ -18,33 +18,35 @@
       id="searchInput"
       autocomplete="off"
     />
-    <div class="tp-filter-selects">
-      <select name="tune_type" class="filter-select" id="tpTypeSelect" aria-label="Type"
+    <div class="tp-header-filters-row">
+      <div class="tp-filter-selects">
+        <select name="tune_type" class="filter-select" id="tpTypeSelect" aria-label="Type"
+                onchange="this.form.submit()">
+          <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
+          {% for tt in types_for_filter %}
+            <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+          {% endfor %}
+        </select>
+        <select name="psr" class="filter-select" id="tpPsrSelect" aria-label="Practice since reset"
+                onchange="this.form.submit()">
+          <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
+          <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
+          <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
+        </select>
+      </div>
+      <label class="table-sr-only" for="tpPeriodSelect">Duration</label>
+      <select name="period" class="filter-select" id="tpPeriodSelect" aria-label="Duration"
               onchange="this.form.submit()">
-        <option value="" {% if not tune_type %}selected{% endif %}>All Types</option>
-        {% for tt in types_for_filter %}
-          <option value="{{ tt }}" {% if tune_type == tt %}selected{% endif %}>{{ tt }}</option>
+        {% for key, (label, _) in period_options.items() %}
+          <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <select name="psr" class="filter-select" id="tpPsrSelect" aria-label="Practice since reset"
-              onchange="this.form.submit()">
-        <option value="" {% if psr_filter == 'all' %}selected{% endif %}>All</option>
-        <option value="psr" {% if psr_filter == 'psr' %}selected{% endif %}>PSR</option>
-        <option value="not_psr" {% if psr_filter == 'not_psr' %}selected{% endif %}>Not PSR</option>
-      </select>
+      <input type="hidden" name="sort" id="sortInput" value="{{ sort }}">
+      <button type="button" id="sortToggle" class="btn-sort-toggle" title="Toggle sort order" aria-label="Toggle sort order">
+        <span id="sortIcon">{% if sort == 'most' %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="2 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="12 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>{% endif %}</span>
+      </button>
     </div>
-    <label class="table-sr-only" for="tpPeriodSelect">Duration</label>
-    <select name="period" class="filter-select" id="tpPeriodSelect" aria-label="Duration"
-            onchange="this.form.submit()">
-      {% for key, (label, _) in period_options.items() %}
-        <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <input type="hidden" name="sort" id="sortInput" value="{{ sort }}">
-    <button type="button" id="sortToggle" class="btn-sort-toggle" title="Toggle sort order" aria-label="Toggle sort order">
-      <span id="sortIcon">{% if sort == 'most' %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="2 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="12 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>{% endif %}</span>
-    </button>
-    <a href="{{ url_for('add_tune') }}" class="btn btn-primary" aria-label="Add tune">+ Add Tune</a>
+    <a href="{{ url_for('add_tune') }}" class="btn btn-primary tp-header-add-btn" aria-label="Add tune"><span class="tp-header-add-label tp-header-add-label--desktop">+ Add Tune</span><span class="tp-header-add-label tp-header-add-label--mobile">+ Add</span></a>
   </div>
 </form>
 

@@ -17,10 +17,11 @@ from flask import (
     request,
     send_from_directory,
     url_for,
-) 
-blah="foo"
+)
+
 app = Flask(__name__)
 app.secret_key = "katie-music-practice-key"
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 _APP_ROOT = Path(__file__).resolve().parent
 LESSON_TUNES_DIR = _APP_ROOT / "lesson_tunes"
