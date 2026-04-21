@@ -1187,6 +1187,14 @@ def tune_panel(tune_id):
             return "Not found", 404
         stats = _practice_stats(conn, tune_id)
         tune_sets = _tune_sets_for_panel(conn, tune_id)
+    lesson_audio_files = [
+        {
+            "name": r["name"],
+            "url": url_for("lesson_tunes_download", filename=r["name"]),
+        }
+        for r in tune_lesson_files_rows(tune)
+        if not r["missing"] and r.get("embed_kind") == "audio"
+    ]
     return render_template(
         "tune_panel.html",
         tune=tune,
@@ -1194,6 +1202,7 @@ def tune_panel(tune_id):
         tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
         key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
         tune_sets=tune_sets,
+        lesson_audio_files=lesson_audio_files,
         **stats,
     )
 
@@ -2118,6 +2127,25 @@ def lesson_tunes_download(filename: str):
         as_attachment=False,
         mimetype=_lesson_serve_mimetype(target.name),
     )
+
+
+def list_lesson_tune_audio_filenames() -> list[str]:
+    """File names in lesson_tunes that use a known audio extension (same listing rules as lesson page)."""
+    return [
+        row["name"]
+        for row in list_lesson_tune_files()
+        if Path(row["name"]).suffix.lower().lstrip(".") in _LESSON_AUDIO_EXT
+    ]
+
+
+@app.route("/test")
+def test_view():
+    files = list_lesson_tune_audio_filenames()
+    audio_entries = [
+        {"name": name, "url": url_for("lesson_tunes_download", filename=name)}
+        for name in files
+    ]
+    return render_template("test.html", audio_entries=audio_entries)
 
 
 @app.route("/times-played")

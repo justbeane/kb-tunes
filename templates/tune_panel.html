@@ -53,6 +53,10 @@
             aria-selected="true" aria-controls="tunePanelPanelDetails" data-tab="details">Details</button>
     <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabNotes"
             aria-selected="false" aria-controls="tunePanelPanelNotes" tabindex="-1" data-tab="notes">Notes</button>
+    {% if lesson_audio_files %}
+    <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabFiles"
+            aria-selected="false" aria-controls="tunePanelPanelFiles" tabindex="-1" data-tab="files">Files</button>
+    {% endif %}
     <button type="button" class="tune-panel-tab" role="tab" id="tunePanelTabLinks"
             aria-selected="false" aria-controls="tunePanelPanelLinks" tabindex="-1" data-tab="links">Links</button>
     {% for slice_id in soundslice_embeds or [] %}
@@ -158,6 +162,42 @@
       </div>
     </div>
   </div>
+
+  {% if lesson_audio_files %}
+  <div class="tune-panel-tabpanel" role="tabpanel" id="tunePanelPanelFiles" aria-labelledby="tunePanelTabFiles"
+       data-panel="files" hidden>
+    <div class="tune-panel-modal-card tune-panel-lesson-files-card">
+      {% for f in lesson_audio_files %}
+      <div class="tune-panel-lesson-audio-row" data-lesson-filename="{{ f.name|e }}">
+        <div class="card-title tune-panel-lesson-audio-heading">
+          <span class="card-title-text">{{ f.name|e }}</span>
+        </div>
+        <audio class="tune-panel-lesson-audio-element test-lesson-audio" controls preload="metadata"
+               src="{{ f.url }}"></audio>
+        <div class="test-lesson-audio-speed">
+          <div class="test-lesson-audio-speed-row">
+            <label class="test-lesson-audio-speed-label" for="tunePanelLessonAudioSpeed{{ loop.index0 }}">
+              Speed <span class="test-lesson-audio-speed-value tune-panel-lesson-audio-speed-value">100%</span>
+            </label>
+            <input type="range" id="tunePanelLessonAudioSpeed{{ loop.index0 }}"
+                   class="test-lesson-audio-speed-slider tune-panel-lesson-audio-speed-slider"
+                   min="60" max="100" step="1" value="100"
+                   aria-valuemin="60" aria-valuemax="100" aria-valuenow="100"
+                   aria-label="Playback speed for {{ f.name|e }}, 60% to 100%">
+          </div>
+          <div class="test-lesson-audio-speed-presets" role="group" aria-label="Speed presets">
+            <button type="button" class="btn btn-xs test-lesson-audio-preset tune-panel-lesson-audio-preset" data-speed-pct="60">60%</button>
+            <button type="button" class="btn btn-xs test-lesson-audio-preset tune-panel-lesson-audio-preset" data-speed-pct="70">70%</button>
+            <button type="button" class="btn btn-xs test-lesson-audio-preset tune-panel-lesson-audio-preset" data-speed-pct="80">80%</button>
+            <button type="button" class="btn btn-xs test-lesson-audio-preset tune-panel-lesson-audio-preset" data-speed-pct="90">90%</button>
+            <button type="button" class="btn btn-xs test-lesson-audio-preset tune-panel-lesson-audio-preset" data-speed-pct="100">100%</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <div class="tune-panel-tabpanel" role="tabpanel" id="tunePanelPanelLinks" aria-labelledby="tunePanelTabLinks"
        data-panel="links" hidden>

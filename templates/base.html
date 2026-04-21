@@ -133,6 +133,10 @@
            class="sidebar-item {% if request.endpoint == 'lesson_tunes_view' %}active{% endif %}">
           Lesson Tunes
         </a>
+        <a id="sidebarNavTest" href="{{ url_for('test_view') }}"
+           class="sidebar-item {% if request.endpoint == 'test_view' %}active{% endif %}">
+          Test
+        </a>
       </nav>
 
       <!-- Settings Button + Collapse toggle inside sidebar footer -->
@@ -219,6 +223,10 @@
       <a id="mobileNavLessonTunes" href="{{ url_for('lesson_tunes_view') }}"
          class="sidebar-item {% if request.endpoint == 'lesson_tunes_view' %}active{% endif %}">
         Lesson Tunes
+      </a>
+      <a id="mobileNavTest" href="{{ url_for('test_view') }}"
+         class="sidebar-item {% if request.endpoint == 'test_view' %}active{% endif %}">
+        Test
       </a>
     </nav>
     <div class="mobile-nav-footer">
@@ -1165,11 +1173,65 @@
       });
     }
 
+    function mpInitTunePanelLessonAudio(root) {
+      const form = root.querySelector('#tuneEditForm');
+      const tuneId = form && form.dataset ? form.dataset.tuneId : '';
+      if (!tuneId) return;
+      root.querySelectorAll('.tune-panel-lesson-audio-row').forEach((row) => {
+        const fileName = row.dataset.lessonFilename;
+        const audio = row.querySelector('.tune-panel-lesson-audio-element');
+        const slider = row.querySelector('.tune-panel-lesson-audio-speed-slider');
+        const valueEl = row.querySelector('.tune-panel-lesson-audio-speed-value');
+        if (!fileName || !audio || !slider || !valueEl) return;
+        const lsKey = 'mp-tune-lesson-speed:' + tuneId + ':' + encodeURIComponent(fileName);
+        function clampPct(n) {
+          n = parseInt(n, 10);
+          if (Number.isNaN(n)) return 100;
+          return Math.min(100, Math.max(60, n));
+        }
+        function applyRate() {
+          const pct = clampPct(slider.value);
+          slider.value = String(pct);
+          slider.setAttribute('aria-valuenow', String(pct));
+          valueEl.textContent = pct + '%';
+          try {
+            audio.playbackRate = pct / 100;
+          } catch (e) {}
+        }
+        let saved = 100;
+        try {
+          saved = clampPct(localStorage.getItem(lsKey));
+        } catch (e) {}
+        slider.value = String(saved);
+        applyRate();
+        slider.addEventListener('input', () => {
+          applyRate();
+          try {
+            localStorage.setItem(lsKey, String(clampPct(slider.value)));
+          } catch (e) {}
+        });
+        row.querySelectorAll('.tune-panel-lesson-audio-preset').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const p = clampPct(btn.getAttribute('data-speed-pct'));
+            slider.value = String(p);
+            applyRate();
+            try {
+              localStorage.setItem(lsKey, String(p));
+            } catch (e) {}
+          });
+        });
+        audio.addEventListener('loadeddata', () => {
+          applyRate();
+        });
+      });
+    }
+
     function mpBindTunePanel() {
       if (!tuneModalBody) return;
 
       mpClearTunePickerOutsideListener();
       mpInitTunePanelTabs(tuneModalBody);
+      mpInitTunePanelLessonAudio(tuneModalBody);
 
       tuneModalBody.querySelectorAll('.tune-panel-nested-open[data-panel-url]').forEach(a => {
         a.addEventListener('click', e => {

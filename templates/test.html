@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Test – Fiddle Practice{% endblock %}
+
+{% block content %}
+<div class="test-page">
+  <div class="page-header">
+    <h2>Test</h2>
+  </div>
+  {% if audio_entries %}
+  <div class="card-grid test-lesson-audio-grid">
+    <div class="tune-card test-lesson-audio-card">
+      <div class="card-title">
+        <span class="card-title-text" id="testLessonAudioName"></span>
+      </div>
+      <audio id="testLessonAudio" class="test-lesson-audio" controls preload="metadata"></audio>
+      <div class="test-lesson-audio-speed">
+        <div class="test-lesson-audio-speed-row">
+          <label class="test-lesson-audio-speed-label" for="testLessonAudioSpeed">
+            Speed <span class="test-lesson-audio-speed-value" id="testLessonAudioSpeedValue">100%</span>
+          </label>
+          <input type="range" id="testLessonAudioSpeed" class="test-lesson-audio-speed-slider"
+                 min="50" max="150" step="1" value="100"
+                 aria-valuemin="50" aria-valuemax="150" aria-valuenow="100"
+                 aria-label="Playback speed, 50% to 150%">
+        </div>
+        <div class="test-lesson-audio-speed-presets" role="group" aria-label="Speed presets">
+          <button type="button" class="btn btn-xs test-lesson-audio-preset" data-speed-pct="80">80%</button>
+          <button type="button" class="btn btn-xs test-lesson-audio-preset" data-speed-pct="90">90%</button>
+          <button type="button" class="btn btn-xs test-lesson-audio-preset" data-speed-pct="100">100%</button>
+          <button type="button" class="btn btn-xs test-lesson-audio-preset" data-speed-pct="110">110%</button>
+          <button type="button" class="btn btn-xs test-lesson-audio-preset" data-speed-pct="125">125%</button>
+        </div>
+      </div>
+      <div class="test-lesson-audio-actions">
+        <button type="button" class="btn btn-primary btn-sm" id="testLessonAudioNext">Next</button>
+      </div>
+    </div>
+  </div>
+  <script type="application/json" id="test-lesson-audio-json">{{ audio_entries|tojson }}</script>
+  <script>
+  (function () {
+    const raw = document.getElementById('test-lesson-audio-json');
+    const entries = raw ? JSON.parse(raw.textContent || '[]') : [];
+    const nameEl = document.getElementById('testLessonAudioName');
+    const audio = document.getElementById('testLessonAudio');
+    const nextBtn = document.getElementById('testLessonAudioNext');
+    const speedSlider = document.getElementById('testLessonAudioSpeed');
+    const speedValueEl = document.getElementById('testLessonAudioSpeedValue');
+    if (!entries.length || !nameEl || !audio || !nextBtn) return;
+    var SPEED_LS = 'mp-test-audio-speed-pct';
+    function clampSpeedPct(n) {
+      n = parseInt(n, 10);
+      if (isNaN(n)) return 100;
+      return Math.min(150, Math.max(50, n));
+    }
+    function applyPlaybackRateFromSlider() {
+      if (!speedSlider) return;
+      var pct = clampSpeedPct(speedSlider.value);
+      speedSlider.value = String(pct);
+      speedSlider.setAttribute('aria-valuenow', String(pct));
+      if (speedValueEl) speedValueEl.textContent = pct + '%';
+      try {
+        audio.playbackRate = pct / 100;
+      } catch (e) {}
+    }
+    if (speedSlider) {
+      var saved = clampSpeedPct(localStorage.getItem(SPEED_LS));
+      speedSlider.value = String(saved);
+      applyPlaybackRateFromSlider();
+      speedSlider.addEventListener('input', function () {
+        applyPlaybackRateFromSlider();
+        try {
+          localStorage.setItem(SPEED_LS, String(clampSpeedPct(speedSlider.value)));
+        } catch (e) {}
+      });
+      document.querySelectorAll('.test-lesson-audio-preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var p = clampSpeedPct(btn.getAttribute('data-speed-pct'));
+          speedSlider.value = String(p);
+          applyPlaybackRateFromSlider();
+          try {
+            localStorage.setItem(SPEED_LS, String(p));
+          } catch (e) {}
+        });
+      });
+    }
+    let idx = Math.floor(Math.random() * entries.length);
+    function apply(i) {
+      idx = i;
+      const e = entries[idx];
+      nameEl.textContent = e.name;
+      nameEl.setAttribute('title', e.name);
+      audio.src = e.url;
+      applyPlaybackRateFromSlider();
+      audio.play().catch(function () {});
+    }
+    apply(idx);
+    nextBtn.addEventListener('click', function () {
+      if (entries.length < 2) return;
+      var n;
+      do { n = Math.floor(Math.random() * entries.length); } while (n === idx);
+      apply(n);
+    });
+    if (entries.length < 2) nextBtn.disabled = true;
+  })();
+  </script>
+  {% else %}
+  <p class="test-lesson-audio-empty">
+    No audio files in <code>lesson_tunes</code>. Add MP3, M4A, or other supported audio there (see Lesson Tunes).
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

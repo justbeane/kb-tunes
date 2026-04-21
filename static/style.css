@@ -563,6 +563,132 @@ a:hover { color: var(--accent-hover); }
 }
 
 /* ── Lesson Tunes (folder listing) ── */
+/* ── Test page (random lesson_tunes audio) ── */
+.test-lesson-audio-grid {
+  /* Default .card-grid is 4 columns; one child would only use ~¼ width. */
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.35rem;
+  box-sizing: border-box;
+}
+
+/* 2× content width, left-aligned only (extends right; no negative margin → no sidebar overlap). */
+.test-page .test-lesson-audio-grid {
+  width: 200%;
+  max-width: none;
+}
+
+@media (max-width: 768px) {
+  .test-page .test-lesson-audio-grid {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+.test-lesson-audio-card .test-lesson-audio {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.25rem;
+  min-height: 2.75rem;
+}
+
+/* Chrome / Edge / Safari: wider pill-shaped native controls bar */
+.test-lesson-audio-card .test-lesson-audio::-webkit-media-controls-panel,
+.tune-panel-lesson-audio-element::-webkit-media-controls-panel {
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--surface) 88%, var(--text) 12%);
+}
+
+.tune-panel-lesson-files-card .tune-panel-lesson-audio-row {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tune-panel-lesson-files-card .tune-panel-lesson-audio-row:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.tune-panel-lesson-audio-heading {
+  margin-bottom: 0.2rem;
+}
+
+.tune-panel-lesson-audio-element {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.75rem;
+  margin-top: 0.2rem;
+}
+
+.test-lesson-audio-speed {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.test-lesson-audio-speed-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.test-lesson-audio-speed-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.test-lesson-audio-speed-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.test-lesson-audio-speed-slider {
+  width: 100%;
+  min-height: 1.5rem;
+  cursor: pointer;
+}
+
+.test-lesson-audio-speed-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.test-lesson-audio-preset {
+  opacity: 0.92;
+}
+
+.test-lesson-audio-actions {
+  margin-top: 0.45rem;
+}
+
+.test-lesson-audio-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.test-lesson-audio-empty {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.test-lesson-audio-empty code {
+  font-size: 0.9em;
+}
+
 .lesson-tunes-page .lesson-tunes-intro {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;
