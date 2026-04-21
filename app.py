@@ -327,30 +327,6 @@ def practice_datetime_no_seconds_filter(value):
     return s
 
 
-def resync_practice_groups_from_csv(csv_path: Path | None = None) -> int:
-    """Re-read Practice Group column from tunes.csv and update tunes.practice_group."""
-    import csv as _csv
-
-    path = csv_path or (_APP_ROOT / "temp_data" / "tunes.csv")
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        rows = list(_csv.DictReader(f))
-    updated = 0
-    with get_db() as conn:
-        for r in rows:
-            name = (r.get("Name") or "").strip()
-            if not name:
-                continue
-            cell = r.get("Practice Group") or ""
-            stored = normalize_practice_groups_stored(cell)
-            cur = conn.execute(
-                "UPDATE tunes SET practice_group = ? WHERE name = ?",
-                (stored, name),
-            )
-            updated += cur.rowcount
-        conn.commit()
-    return updated
-
-
 # Strips leading "The " / "A " for natural title sorting.
 # Tuple: (label, months back from Central "today", or None = all time).
 PERIOD_OPTIONS = {
@@ -887,6 +863,7 @@ def init_db():
             ("practice_group", "TEXT"),
             ("composer",    "TEXT"),
             ("lessons",     "TEXT"),
+            ("tune_num",    "INTEGER"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE tunes ADD COLUMN {col} {defn}")
