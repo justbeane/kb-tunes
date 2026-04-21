@@ -81,6 +81,9 @@
        data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}"
        data-last-practiced="{{ tune.last_practiced or '' }}">
     <h3 class="card-title">
+      {% if tune.tune_num is not none %}
+      <span class="card-tune-num" title="Tune No.">{{ tune.tune_num }}</span>
+      {% endif %}
       <span class="card-title-text">{{ tune.name }}</span>
       {% if (tune.notes or '')|trim %}
       <span class="tune-notes-icon-wrap tune-notes-icon--card" title="Has notes" aria-label="Has notes">
@@ -134,19 +137,21 @@
   <table class="tune-table table-layout-modern table-filter-all" id="tuneTable">
     <thead>
       <tr>
-        <th class="sortable" data-col="0">{{ sortable_heading('Name') }}</th>
-        <th class="sortable" data-col="1">{{ sortable_heading('Type') }}</th>
-        <th class="sortable" data-col="2">{{ sortable_heading('Group') }}</th>
-        <th class="sortable" data-col="3">{{ sortable_heading('Key') }}</th>
-        <th class="sortable" data-col="4">{{ sortable_heading('Composer') }}</th>
-        <th class="sortable col-readonly" data-col="5">{{ sortable_heading('Plays') }}</th>
-        <th class="sortable col-readonly" data-col="6">{{ sortable_heading('Days') }}</th>
+        <th class="sortable col-readonly" data-col="0">{{ sortable_heading('No.') }}</th>
+        <th class="sortable" data-col="1">{{ sortable_heading('Name') }}</th>
+        <th class="sortable" data-col="2">{{ sortable_heading('Type') }}</th>
+        <th class="sortable" data-col="3">{{ sortable_heading('Group') }}</th>
+        <th class="sortable" data-col="4">{{ sortable_heading('Key') }}</th>
+        <th class="sortable" data-col="5">{{ sortable_heading('Composer') }}</th>
+        <th class="sortable col-readonly" data-col="6">{{ sortable_heading('Plays') }}</th>
+        <th class="sortable col-readonly" data-col="7">{{ sortable_heading('Days') }}</th>
         <th class="col-tune-practice" scope="col"><span class="table-sr-only">Practice tune</span></th>
       </tr>
     </thead>
     <tbody>
       {% for tune in tunes %}
       <tr data-id="{{ tune.id }}" data-last-practiced="{{ tune.last_practiced or '' }}">
+        <td class="cell-readonly tune-table-num col-tune-num">{% if tune.tune_num is not none %}{{ tune.tune_num }}{% endif %}</td>
         <td class="col-name"
             data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}"
             title="Open tune details (double-click name to edit here)">
@@ -324,14 +329,14 @@
     else if (select) text = select.options[select.selectedIndex].text.replace('—','').trim().toLowerCase();
     else if (date)   return date.value || '';
     else text = td.textContent.trim().toLowerCase();
-    return colIdx === 0 ? stripArticle(text) : text;
+    return colIdx === 1 ? stripArticle(text) : text;
   }
 
-  /** Plays (5) / Days (6): numeric; Days empty → Infinity. */
+  /** No. (0) / Plays (6) / Days (7): numeric; empty → Infinity for sorting last when ascending. */
   function getNumericSortValue(row, colIdx) {
     const td = row.cells[colIdx];
     const raw = td.textContent.trim();
-    if (colIdx === 6 && !raw.trim()) return Infinity;
+    if ((colIdx === 0 || colIdx === 7) && !raw.trim()) return Infinity;
     const n = parseInt(raw, 10);
     return Number.isFinite(n) ? n : 0;
   }
@@ -353,7 +358,7 @@
     setThSortIcon(activeHeader, sortAsc ? 'asc' : 'desc');
 
     const rows = Array.from(tbody.querySelectorAll('tr'));
-    const numericCol = colIdx === 5 || colIdx === 6;
+    const numericCol = colIdx === 0 || colIdx === 6 || colIdx === 7;
     rows.sort((a, b) => {
       if (numericCol) {
         const av = getNumericSortValue(a, colIdx);

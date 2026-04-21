@@ -5,12 +5,23 @@
   <input type="hidden" name="modal" value="1" />
   {% endif %}
 
-  <div class="form-group">
-    <label for="tune_name_field">Tune name <span class="required">*</span></label>
-    <input type="text" id="tune_name_field" name="name"
-           value="{{ (tune['name'] or '') if tune else '' }}"
-           placeholder="e.g. The Kid on the Mountain"
-           required {% if not modal %}autofocus{% endif %} />
+  <div class="form-row form-row--tune-name-num{% if not tune %} form-row--name-only{% endif %}">
+    <div class="form-group form-group--tune-name">
+      <label for="tune_name_field">Tune name <span class="required">*</span></label>
+      <input type="text" id="tune_name_field" name="name"
+             value="{{ (tune['name'] or '') if tune else '' }}"
+             placeholder="e.g. The Kid on the Mountain"
+             required {% if not modal %}autofocus{% endif %} />
+    </div>
+    {% if tune %}
+    <div class="form-group form-group--tune-num">
+      <label for="tune_num_display_field">No.</label>
+      <input type="text" id="tune_num_display_field" class="tune-num-display-input"
+             value="{% if tune.tune_num is not none %}{{ tune.tune_num }}{% endif %}"
+             readonly tabindex="-1" autocomplete="off"
+             aria-label="Tune number" title="Tune number" inputmode="numeric" />
+    </div>
+    {% endif %}
   </div>
 
   <div class="form-row">

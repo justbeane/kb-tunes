@@ -3679,6 +3679,36 @@ html[data-card-dividers="off"] .tune-card .card-actions {
   min-width: 0;
 }
 
+/* Tune name + readonly tune number (same row) */
+.form-row--tune-name-num {
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
+  align-items: end;
+}
+.form-row--tune-name-num.form-row--name-only {
+  grid-template-columns: 1fr;
+}
+.form-group--tune-num label {
+  font-size: 0.88rem;
+}
+.tune-num-display-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.92;
+  cursor: default;
+}
+
+/* Practice-group table cards: tune number before title */
+.practice-group-mobile-card-grid .card-tune-num {
+  display: inline-block;
+  margin-right: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
 /* Let the date control shrink to the grid cell; avoid overflow:hidden (truncates the UI) */
 .form-date-input-wrap {
   display: flex;
@@ -4363,27 +4393,36 @@ footer {
 
 /*
  * Column widths: fixed layout with tight rem widths on compact cols only.
- * Name (data-col 0) has no width — it receives all leftover horizontal space
+ * Name (data-col 1) has no width — it receives all leftover horizontal space
  * so the table fills the viewport without a dead “gutter”.
  * Hidden columns (instrument filter) are skipped; slack goes to Name.
  */
 #tuneTable.table-layout-modern thead th[data-col="0"] {
+  width: 3.35rem;
+  min-width: 3rem;
+  text-align: right;
+}
+#tuneTable.table-layout-modern tbody td.col-tune-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#tuneTable.table-layout-modern thead th[data-col="1"] {
   min-width: 0;
-  /* no width — expands/shrinks with remaining table width;0 so fixed cols keep priority when narrow */
+  /* no width — expands/shrinks with remaining table width */
 }
 
-#tuneTable.table-layout-modern thead th[data-col="1"] { width: 7.25rem; } /* type */
-#tuneTable.table-layout-modern thead th[data-col="2"] { width: 12.5rem; } /* practice groups (pills wrap) */
-#tuneTable.table-layout-modern thead th[data-col="3"] { width: 5.2rem; }  /* key */
-#tuneTable.table-layout-modern thead th[data-col="4"] { width: 6.5rem; }  /* composer */
-#tuneTable.table-layout-modern thead th[data-col="5"] {
+#tuneTable.table-layout-modern thead th[data-col="2"] { width: 7.25rem; } /* type */
+#tuneTable.table-layout-modern thead th[data-col="3"] { width: 12.5rem; } /* practice groups (pills wrap) */
+#tuneTable.table-layout-modern thead th[data-col="4"] { width: 5.2rem; }  /* key */
+#tuneTable.table-layout-modern thead th[data-col="5"] { width: 6.5rem; }  /* composer */
+#tuneTable.table-layout-modern thead th[data-col="6"] {
   width: 3.5rem;
 }
-#tuneTable.table-layout-modern thead th[data-col="6"] {
+#tuneTable.table-layout-modern thead th[data-col="7"] {
   width: calc(3.5rem + 19px);
 }
-#tuneTable.table-layout-modern thead th[data-col="6"],
-#tuneTable.table-layout-modern tbody td:nth-child(7) {
+#tuneTable.table-layout-modern thead th[data-col="7"],
+#tuneTable.table-layout-modern tbody td:nth-child(8) {
   padding-left: calc(0.65rem + 10px);
   padding-right: calc(0.65rem + 5px);
 }
@@ -5502,43 +5541,48 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
   }
   #tuneTable.table-layout-modern thead th:nth-child(1),
   #tuneTable.table-layout-modern tbody td:nth-child(1) {
+    flex: 0 0 3.25rem;
+    min-width: 2.75rem;
+  }
+  #tuneTable.table-layout-modern thead th:nth-child(2),
+  #tuneTable.table-layout-modern tbody td:nth-child(2) {
     flex: 0 0 calc(22rem * 0.67);
     width: calc(22rem * 0.67);
     min-width: calc(22rem * 0.67);
     max-width: none;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(2),
-  #tuneTable.table-layout-modern tbody td:nth-child(2) {
+  #tuneTable.table-layout-modern thead th:nth-child(3),
+  #tuneTable.table-layout-modern tbody td:nth-child(3) {
     flex: 0 0 7.25rem;
     min-width: 5rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(3),
-  #tuneTable.table-layout-modern tbody td:nth-child(3) {
+  #tuneTable.table-layout-modern thead th:nth-child(4),
+  #tuneTable.table-layout-modern tbody td:nth-child(4) {
     flex: 0 0 12.5rem;
     min-width: 8rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(4),
-  #tuneTable.table-layout-modern tbody td:nth-child(4) {
+  #tuneTable.table-layout-modern thead th:nth-child(5),
+  #tuneTable.table-layout-modern tbody td:nth-child(5) {
     flex: 0 0 5.2rem;
     min-width: 3.5rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(5),
-  #tuneTable.table-layout-modern tbody td:nth-child(5) {
+  #tuneTable.table-layout-modern thead th:nth-child(6),
+  #tuneTable.table-layout-modern tbody td:nth-child(6) {
     flex: 0 0 6.5rem;
     min-width: 4rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(6),
-  #tuneTable.table-layout-modern tbody td:nth-child(6) {
+  #tuneTable.table-layout-modern thead th:nth-child(7),
+  #tuneTable.table-layout-modern tbody td:nth-child(7) {
     flex: 0 0 3.5rem;
     min-width: 2.75rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(7),
-  #tuneTable.table-layout-modern tbody td:nth-child(7) {
+  #tuneTable.table-layout-modern thead th:nth-child(8),
+  #tuneTable.table-layout-modern tbody td:nth-child(8) {
     flex: 0 0 calc(3.5rem + 19px);
     min-width: 3rem;
   }
-  #tuneTable.table-layout-modern thead th:nth-child(8),
-  #tuneTable.table-layout-modern tbody td:nth-child(8) {
+  #tuneTable.table-layout-modern thead th:nth-child(9),
+  #tuneTable.table-layout-modern tbody td:nth-child(9) {
     flex: 0 0 8rem;
     width: 8rem;
     min-width: 7rem;
@@ -6264,6 +6308,12 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
   }
   .search-input { width: 100%; }
   .form-row { grid-template-columns: 1fr; }
+  .form-row--tune-name-num {
+    grid-template-columns: minmax(0, 1fr) 4.25rem;
+  }
+  .form-row--tune-name-num.form-row--name-only {
+    grid-template-columns: 1fr;
+  }
   header { padding: 0 1rem; }
   main { padding: 1.25rem 1rem; }
 }

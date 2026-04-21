@@ -41,10 +41,14 @@
           <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <input type="hidden" name="sort" id="sortInput" value="{{ sort }}">
-      <button type="button" id="sortToggle" class="btn-sort-toggle" title="Toggle sort order" aria-label="Toggle sort order">
-        <span id="sortIcon">{% if sort == 'most' %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="2 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" width="5.625" height="10" viewBox="12 3 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="sort-icon-svg"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>{% endif %}</span>
-      </button>
+      <label class="table-sr-only" for="tpSortSelect">Sort by</label>
+      <select name="sort" class="filter-select" id="tpSortSelect" aria-label="Sort by"
+              onchange="localStorage.setItem('mp-tp-sort', this.value); this.form.submit();">
+        <option value="most" {% if sort == 'most' %}selected{% endif %}>Play count (high first)</option>
+        <option value="least" {% if sort == 'least' %}selected{% endif %}>Play count (low first)</option>
+        <option value="tune_num" {% if sort == 'tune_num' %}selected{% endif %}>No. (low first)</option>
+        <option value="tune_num_d" {% if sort == 'tune_num_d' %}selected{% endif %}>No. (high first)</option>
+      </select>
     </div>
     <a href="{{ url_for('add_tune') }}" class="btn btn-primary tp-header-add-btn" aria-label="Add tune"><span class="tp-header-add-label tp-header-add-label--desktop">+ Add Tune</span><span class="tp-header-add-label tp-header-add-label--mobile">+ Add</span></a>
   </div>
@@ -129,21 +133,6 @@
           }
         });
     });
-  });
-
-  // ── Sort toggle button ──
-  const sortInput  = document.getElementById('sortInput');
-  const sortToggle = document.getElementById('sortToggle');
-  const sortIcon   = document.getElementById('sortIcon');
-
-  sortToggle?.addEventListener('click', () => {
-    const next = sortInput.value === 'most' ? 'least' : 'most';
-    sortInput.value = next;
-    if (window.mpSortIcons) {
-      sortIcon.innerHTML = next === 'most' ? window.mpSortIcons.asc : window.mpSortIcons.desc;
-    }
-    localStorage.setItem('mp-tp-sort', next);
-    document.getElementById('filterForm').submit();
   });
 
   // ── Persist filter selections ──

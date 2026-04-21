@@ -367,6 +367,18 @@ SORT_NAME = """
 SORT_OPTIONS = {
     "name": ("Name \u2191", f"{SORT_NAME} ASC"),
     "name_d": ("Name \u2193", f"{SORT_NAME} DESC"),
+    "tune_num": (
+        "No. \u2191",
+        "CASE WHEN s.tune_num IS NULL THEN 1 ELSE 0 END, s.tune_num ASC, "
+        + SORT_NAME
+        + " ASC",
+    ),
+    "tune_num_d": (
+        "No. \u2193",
+        "CASE WHEN s.tune_num IS NULL THEN 1 ELSE 0 END, s.tune_num DESC, "
+        + SORT_NAME
+        + " ASC",
+    ),
     "least": ("Count \u2191", f"practice_count ASC, {SORT_NAME} ASC"),
     "most": ("Count \u2193", f"practice_count DESC, {SORT_NAME} ASC"),
     "last_asc": (
@@ -2131,7 +2143,8 @@ def times_played():
     psr_filter = _psr_filter_from_request()
     period = request.args.get("period", "1m")
     sort = request.args.get("sort", "most")
-    if sort not in ("most", "least"):
+    _tp_sort = frozenset({"most", "least", "tune_num", "tune_num_d"})
+    if sort not in _tp_sort:
         sort = "most"
     search = request.args.get("search", "").strip()
 
@@ -2153,11 +2166,22 @@ def times_played():
         reset_bound = _last_reset_start_sqlite(conn)
         psr_frags, psr_params = _psr_sql_fragments(psr_filter, reset_bound)
 
-        order = (
-            f"period_count DESC, {SORT_NAME} ASC"
-            if sort == "most"
-            else f"period_count ASC, {SORT_NAME} ASC"
-        )
+        if sort == "most":
+            order = f"period_count DESC, {SORT_NAME} ASC"
+        elif sort == "least":
+            order = f"period_count ASC, {SORT_NAME} ASC"
+        elif sort == "tune_num":
+            order = (
+                "CASE WHEN s.tune_num IS NULL THEN 1 ELSE 0 END, s.tune_num ASC, "
+                + SORT_NAME
+                + " ASC"
+            )
+        else:
+            order = (
+                "CASE WHEN s.tune_num IS NULL THEN 1 ELSE 0 END, s.tune_num DESC, "
+                + SORT_NAME
+                + " ASC"
+            )
 
         conditions, params = [], []
         if tune_type:
