@@ -1172,6 +1172,7 @@
         tab.addEventListener('click', () => activate(tab.dataset.tab));
       });
     }
+    window.mpInitTunePanelTabs = mpInitTunePanelTabs;
 
     function mpInitTunePanelLessonAudio(root) {
       const form = root.querySelector('#tuneEditForm');

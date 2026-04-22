@@ -3,12 +3,13 @@
 
 {% block content %}
 <div class="form-page">
+  {% if tune %}
   <div class="form-header">
     <a href="{{ url_for('index') }}" class="back-link">← Back to tunes</a>
     <h2>{{ action }} tune</h2>
   </div>
 
-  {% if tune and practice_count is defined %}
+  {% if practice_count is defined %}
   <div class="practice-stats-box">
     <div class="stat-item">
       <span class="stat-label">First practiced</span>
@@ -29,25 +30,355 @@
   </div>
   {% endif %}
 
-  {% with modal=False, form_action='' %}
+  {% with modal=False, form_action=url_for('edit_tune', tune_id=tune.id) %}
   {% include "tune_form_inner.html" %}
   {% endwith %}
 
-  {% if tune %}
   <form method="post" action="{{ url_for('delete_tune', tune_id=tune.id) }}" class="delete-form" id="tunePageDeleteForm">
     <input type="hidden" name="confirm_delete" value="1" />
     <button type="submit" class="btn btn-danger">Delete tune</button>
   </form>
+
+  <script>
+    document.getElementById('tunePageDeleteForm')?.addEventListener('submit', function (e) {
+      e.preventDefault();
+      window.mpConfirmDeletion().then(ok => {
+        if (!ok) return;
+        this.submit();
+      });
+    });
+  </script>
+
+  {% else %}
+  {# Add tune: same tab pattern as view modal (Details / Notes / Links); no Lessons. #}
+  <div class="form-header">
+    <a href="{{ url_for('index') }}" class="back-link">← Back to tunes</a>
+  </div>
+
+  <div id="tuneAddPanelRoot" class="tune-modal-body tune-add-page-body">
+    <div class="tune-add-page-sheet">
+    <h2 class="tune-panel-modal-heading" id="tuneAddPanelHeading">
+      <span class="tune-panel-modal-title-text">Add tune</span>
+      <span class="tune-has-notes-icon" id="tuneAddNotesIndicator"
+            {% if not ((add_form.notes if add_form is defined and add_form else '') or '')|trim %}hidden{% endif %}
+            title="Has notes" aria-label="Has notes">
+        <svg class="tune-notes-icon-svg" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M16 13H8"/>
+          <path d="M16 17H8"/>
+          <path d="M10 9H8"/>
+        </svg>
+      </span>
+    </h2>
+
+    <div class="tune-panel-tabs" role="tablist" aria-label="Tune sections">
+      <button type="button" class="tune-panel-tab tune-panel-tab--active" role="tab" id="tuneAddTabDetails"
+              aria-selected="true" aria-controls="tuneAddPanelDetails" data-tab="details">Details</button>
+      <button type="button" class="tune-panel-tab" role="tab" id="tuneAddTabNotes"
+              aria-selected="false" aria-controls="tuneAddPanelNotes" tabindex="-1" data-tab="notes">Notes</button>
+      <button type="button" class="tune-panel-tab" role="tab" id="tuneAddTabLinks"
+              aria-selected="false" aria-controls="tuneAddPanelLinks" tabindex="-1" data-tab="links">Links</button>
+    </div>
+
+    <form method="post" class="tune-form" id="tuneEditForm" action="{{ url_for('add_tune') }}">
+      <div class="tune-panel-tabpanel tune-panel-tabpanel--active" role="tabpanel" id="tuneAddPanelDetails"
+           aria-labelledby="tuneAddTabDetails" data-panel="details">
+        <div class="tune-panel-modal-card">
+          {% with modal=True %}
+          {% include "tune_form_fields.html" %}
+          {% endwith %}
+        </div>
+      </div>
+
+      <div class="tune-panel-tabpanel" role="tabpanel" id="tuneAddPanelNotes" aria-labelledby="tuneAddTabNotes"
+           data-panel="notes" hidden>
+        <div class="tune-panel-modal-card tune-panel-notes-card">
+          <div class="tune-panel-notes-value" id="tuneAddNotesWrap">
+            <div class="tune-panel-notes-view">
+              <div class="tune-panel-notes-rendered tune-panel-markdown" aria-live="polite"></div>
+              <button type="button" class="tune-panel-notes-edit-btn" aria-label="Edit notes" title="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                  <path d="m15 5 4 4"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tune-panel-notes-edit" hidden>
+              <div class="tune-panel-notes-edit-row">
+                <textarea class="tune-panel-notes-input" name="notes" rows="10" spellcheck="true" aria-label="Notes (Markdown)">{{ (add_form.notes if add_form is defined and add_form else '')|e }}</textarea>
+                <button type="button" class="tune-panel-notes-done-btn" aria-label="Done editing notes" title="Done">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tune-panel-tabpanel" role="tabpanel" id="tuneAddPanelLinks" aria-labelledby="tuneAddTabLinks"
+           data-panel="links" hidden>
+        <div class="tune-panel-modal-card tune-panel-links-card">
+          {% for n in [1, 2, 3] %}
+          {% set field = 'link_' ~ n %}
+          {% set url_raw = ((add_form[field] if add_form is defined and add_form and field in add_form else '')|trim) %}
+          {% if url_raw.startswith('http://') or url_raw.startswith('https://') %}
+          {% set href_raw = url_raw %}
+          {% elif url_raw %}
+          {% set href_raw = 'https://' ~ url_raw %}
+          {% else %}
+          {% set href_raw = '' %}
+          {% endif %}
+          <div class="tune-panel-link-row" data-link-field="{{ field }}">
+            <span class="tune-panel-link-label">Link {{ n }}</span>
+            <div class="tune-panel-link-value">
+              <div class="tune-panel-link-view">
+                <div class="tune-panel-link-slot">
+                  {% if url_raw %}
+                  <a href="{{ href_raw|e }}" target="_blank" rel="noopener noreferrer" class="tune-link tune-panel-link-href">{{ url_raw|e }}</a>
+                  {% else %}
+                  <span class="tune-panel-link-empty">—</span>
+                  {% endif %}
+                </div>
+                <button type="button" class="tune-panel-link-edit-btn" aria-label="Edit Link {{ n }}" title="Edit">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                    <path d="m15 5 4 4"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="tune-panel-link-edit" hidden>
+                <input type="text" name="{{ field }}" id="tune_add_{{ field }}" class="tune-panel-link-input"
+                       value="{{ url_raw|e }}" placeholder="https://…"
+                       inputmode="url" autocomplete="url" aria-label="Link {{ n }} URL" />
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="tune-modal-actions tune-panel-modal-actions tune-add-form-actions">
+        <div class="form-actions-right">
+          <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+          <button type="submit" class="btn btn-primary">Add tune</button>
+        </div>
+      </div>
+    </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      function mpTunePanelLinkHref(raw) {
+        const s = String(raw || '').trim();
+        if (!s) return '';
+        if (/^https?:\/\//i.test(s)) return s;
+        return 'https://' + s;
+      }
+      function mpTunePanelFillLinkSlot(slot, raw) {
+        const s = String(raw || '').trim();
+        slot.replaceChildren();
+        if (!s) {
+          const em = document.createElement('span');
+          em.className = 'tune-panel-link-empty';
+          em.textContent = '—';
+          slot.appendChild(em);
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = mpTunePanelLinkHref(s);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'tune-link tune-panel-link-href';
+        a.textContent = s;
+        slot.appendChild(a);
+      }
+      /** View/edit link rows on Add tune (no API; values submit with the form). */
+      function mpInitTuneAddPanelLinks(root) {
+        root.querySelectorAll('.tune-panel-links-card .tune-panel-link-row[data-link-field]').forEach(row => {
+          const view = row.querySelector('.tune-panel-link-view');
+          const edit = row.querySelector('.tune-panel-link-edit');
+          const input = row.querySelector('.tune-panel-link-input');
+          const slot = row.querySelector('.tune-panel-link-slot');
+          const btn = row.querySelector('.tune-panel-link-edit-btn');
+          if (!view || !edit || !input || !slot || !btn) return;
+
+          function enterEdit() {
+            input.dataset.originalValue = input.value;
+            view.setAttribute('hidden', '');
+            edit.removeAttribute('hidden');
+            input.focus();
+          }
+          function leaveEdit() {
+            view.removeAttribute('hidden');
+            edit.setAttribute('hidden', '');
+          }
+
+          btn.addEventListener('click', () => enterEdit());
+
+          input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              input.blur();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              input.value = input.dataset.originalValue || '';
+              leaveEdit();
+            }
+          });
+
+          input.addEventListener('blur', () => {
+            if (edit.hasAttribute('hidden')) return;
+            const orig = (input.dataset.originalValue || '').trim();
+            const v = input.value.trim();
+            if (v === orig) {
+              leaveEdit();
+              return;
+            }
+            mpTunePanelFillLinkSlot(slot, v);
+            input.value = v;
+            input.dataset.originalValue = v;
+            leaveEdit();
+          });
+        });
+      }
+
+      function initAddTunePage() {
+      const root = document.getElementById('tuneAddPanelRoot');
+      if (!root) return;
+      if (window.mpInitTunePanelTabs) window.mpInitTunePanelTabs(root);
+
+      const form = root.querySelector('#tuneEditForm');
+      if (window.mpSuggestInitScope && form) window.mpSuggestInitScope(form);
+      if (window.mpPracticeGroupsInitScope && form) window.mpPracticeGroupsInitScope(form);
+      if (window.mpEnhanceCustomSelectsIn && form) window.mpEnhanceCustomSelectsIn(form);
+
+      mpInitTuneAddPanelLinks(root);
+
+      const nameField = root.querySelector('#tune_name_field');
+      const titleText = root.querySelector('.tune-panel-modal-title-text');
+      function syncHeading() {
+        const t = (nameField && nameField.value.trim()) || 'Add tune';
+        if (titleText) titleText.textContent = t;
+      }
+      nameField?.addEventListener('input', syncHeading);
+      nameField?.addEventListener('change', syncHeading);
+      syncHeading();
+
+      const wrap = root.querySelector('#tuneAddNotesWrap');
+      const notesIndicator = root.querySelector('#tuneAddNotesIndicator');
+      if (!wrap) return;
+      const view = wrap.querySelector('.tune-panel-notes-view');
+      const edit = wrap.querySelector('.tune-panel-notes-edit');
+      const ta = wrap.querySelector('.tune-panel-notes-input');
+      const rendered = wrap.querySelector('.tune-panel-notes-rendered');
+      const btn = wrap.querySelector('.tune-panel-notes-edit-btn');
+      const doneBtn = wrap.querySelector('.tune-panel-notes-done-btn');
+      if (!view || !edit || !ta || !rendered || !btn) return;
+
+      function setNotesIndicatorVisible(visible) {
+        if (!notesIndicator) return;
+        notesIndicator.hidden = !visible;
+      }
+
+      function mpRenderTuneNotesMarkdown(md) {
+        const s = String(md ?? '');
+        if (!s.trim()) {
+          rendered.replaceChildren();
+          const p = document.createElement('p');
+          p.className = 'tune-panel-notes-empty';
+          p.textContent = 'No notes yet.';
+          rendered.appendChild(p);
+          return;
+        }
+        if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+          function applyNotesHtml(html) {
+            const str = typeof html === 'string' ? html : String(html);
+            rendered.innerHTML = DOMPurify.sanitize(str, { USE_PROFILES: { html: true } });
+            rendered.querySelectorAll('a[href]').forEach(a => {
+              a.setAttribute('target', '_blank');
+              a.setAttribute('rel', 'noopener noreferrer');
+            });
+          }
+          try {
+            const out = marked.parse(s, { async: false });
+            if (out != null && typeof out.then === 'function') {
+              out.then(applyNotesHtml).catch(() => {
+                rendered.replaceChildren();
+                const pre = document.createElement('pre');
+                pre.className = 'tune-panel-markdown-fallback';
+                pre.textContent = s;
+                rendered.appendChild(pre);
+              });
+            } else {
+              applyNotesHtml(out);
+            }
+          } catch (err) {
+            rendered.replaceChildren();
+            const pre = document.createElement('pre');
+            pre.className = 'tune-panel-markdown-fallback';
+            pre.textContent = s;
+            rendered.appendChild(pre);
+          }
+        } else {
+          rendered.replaceChildren();
+          const pre = document.createElement('pre');
+          pre.className = 'tune-panel-markdown-fallback';
+          pre.textContent = s;
+          rendered.appendChild(pre);
+        }
+      }
+
+      mpRenderTuneNotesMarkdown(ta.value);
+      setNotesIndicatorVisible(!!ta.value.trim());
+
+      function enterEdit() {
+        ta.dataset.originalValue = ta.value;
+        view.setAttribute('hidden', '');
+        edit.removeAttribute('hidden');
+        ta.focus();
+      }
+
+      function leaveEdit() {
+        view.removeAttribute('hidden');
+        edit.setAttribute('hidden', '');
+      }
+
+      btn.addEventListener('click', () => enterEdit());
+
+      ta.addEventListener('input', () => {
+        mpRenderTuneNotesMarkdown(ta.value);
+        setNotesIndicatorVisible(!!ta.value.trim());
+      });
+
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          ta.value = ta.dataset.originalValue || '';
+          mpRenderTuneNotesMarkdown(ta.value);
+          setNotesIndicatorVisible(!!ta.value.trim());
+          leaveEdit();
+        }
+      });
+
+      doneBtn?.addEventListener('click', e => {
+        e.preventDefault();
+        mpRenderTuneNotesMarkdown(ta.value);
+        setNotesIndicatorVisible(!!ta.value.trim());
+        leaveEdit();
+      });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAddTunePage);
+      } else {
+        initAddTunePage();
+      }
+    })();
+  </script>
   {% endif %}
 </div>
-
-<script>
-  document.getElementById('tunePageDeleteForm')?.addEventListener('submit', function (e) {
-    e.preventDefault();
-    window.mpConfirmDeletion().then(ok => {
-      if (!ok) return;
-      this.submit();
-    });
-  });
-</script>
 {% endblock %}

@@ -5,17 +5,20 @@ Summarize SQLite tables or print a sample of rows for one table.
   python table_summary.py                       # overview of all tables
   python table_summary.py tunes                 # sample rows from tunes
   python table_summary.py --table sets -n 5     # or use --table + row limit
+  python table_summary.py tunes --search foo    # rows where any field contains 'foo'
+  python table_summary.py tunes --id 42         # row with id=42
 
-Use --db to point at another database file (default: tunes.db next to the katie app).
+Use --db to point at another database file (default: songs.db next to the script root).
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import sqlite3
 import sys
 from pathlib import Path
+
+import pandas as pd
 
 
 def _repo_root() -> Path:
@@ -69,13 +72,7 @@ def summarize(conn: sqlite3.Connection) -> None:
             print(f"    - {cn}{t}")
 
 
-def preview_table(
-    conn: sqlite3.Connection,
-    table: str,
-    *,
-    limit: int,
-    max_cell_len: int,
-) -> None:
+def _validate_table(conn: sqlite3.Connection, table: str) -> None:
     tables = set(list_user_tables(conn))
     if table not in tables:
         sys.stderr.write(
@@ -83,29 +80,83 @@ def preview_table(
         )
         sys.exit(1)
 
-    rows = conn.execute(
-        f'SELECT * FROM "{table}" LIMIT ?',
-        (limit,),
-    ).fetchall()
-    if not rows:
-        print(f"(no rows in {table})")
-        return
 
-    keys = list(rows[0].keys())
-
+def _print_df(df: pd.DataFrame, max_cell_len: int) -> None:
     def shorten(v: object) -> str:
         if v is None:
             return ""
         s = str(v)
-        if len(s) > max_cell_len:
-            return s[: max_cell_len - 1] + "…"
-        return s
+        return s[: max_cell_len - 1] + "…" if len(s) > max_cell_len else s
 
-    out = sys.stdout
-    w = csv.writer(out, lineterminator="\n")
-    w.writerow(keys)
-    for r in rows:
-        w.writerow([shorten(r[k]) for k in keys])
+    display_df = df.map(shorten)
+    with pd.option_context(
+        "display.max_rows", None,
+        "display.max_columns", None,
+        "display.width", None,
+        "display.max_colwidth", max_cell_len,
+    ):
+        print(display_df.to_string(index=False))
+
+
+def preview_table(
+    conn: sqlite3.Connection,
+    table: str,
+    *,
+    limit: int,
+    max_cell_len: int,
+) -> None:
+    _validate_table(conn, table)
+
+    df = pd.read_sql_query(f'SELECT * FROM "{table}" LIMIT ?', conn, params=(limit,))
+    if df.empty:
+        print(f"(no rows in {table})")
+        return
+
+    print(f"{table}  ({len(df)} row{'s' if len(df) != 1 else ''} shown)")
+    _print_df(df, max_cell_len)
+
+
+def search_table(
+    conn: sqlite3.Connection,
+    table: str,
+    *,
+    substring: str | None = None,
+    row_id: int | None = None,
+    limit: int,
+    max_cell_len: int,
+) -> None:
+    _validate_table(conn, table)
+
+    cols = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+    col_names = [c["name"] if isinstance(c, sqlite3.Row) else c[1] for c in cols]
+
+    if row_id is not None:
+        id_col = col_names[0]
+        df = pd.read_sql_query(
+            f'SELECT * FROM "{table}" WHERE "{id_col}" = ?',
+            conn,
+            params=(row_id,),
+        )
+    elif substring is not None:
+        like_clauses = " OR ".join(
+            f'CAST("{c}" AS TEXT) LIKE ?' for c in col_names
+        )
+        params = [f"%{substring}%"] * len(col_names) + [limit]
+        df = pd.read_sql_query(
+            f'SELECT * FROM "{table}" WHERE {like_clauses} LIMIT ?',
+            conn,
+            params=params,
+        )
+    else:
+        sys.stderr.write("search_table: provide substring or row_id.\n")
+        sys.exit(2)
+
+    if df.empty:
+        print("(no matching rows)")
+        return
+
+    print(f"{len(df)} matching row{'s' if len(df) != 1 else ''}:")
+    _print_df(df, max_cell_len)
 
 
 def main() -> None:
@@ -145,6 +196,19 @@ def main() -> None:
         metavar="LEN",
         help="Truncate cell text longer than this (default: 120).",
     )
+    p.add_argument(
+        "--search",
+        metavar="TEXT",
+        default=None,
+        help="Return rows where any field contains TEXT as a substring.",
+    )
+    p.add_argument(
+        "--id",
+        type=int,
+        default=None,
+        metavar="ID",
+        help="Return the row whose first column equals ID.",
+    )
     args = p.parse_args()
 
     table_name = args.table_opt or args.table
@@ -154,10 +218,23 @@ def main() -> None:
         )
         sys.exit(2)
 
+    if (args.search is not None or args.id is not None) and not table_name:
+        sys.stderr.write("--search and --id require a table name.\n")
+        sys.exit(2)
+
     db_path = args.db if args.db is not None else default_db_path()
 
     with _connect(db_path) as conn:
-        if table_name:
+        if table_name and (args.search is not None or args.id is not None):
+            search_table(
+                conn,
+                table_name.strip(),
+                substring=args.search,
+                row_id=args.id,
+                limit=max(1, args.limit),
+                max_cell_len=max(8, args.max_cell),
+            )
+        elif table_name:
             preview_table(
                 conn,
                 table_name.strip(),

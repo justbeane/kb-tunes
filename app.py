@@ -267,6 +267,41 @@ def _lessons_from_request_form() -> str:
     return normalize_lessons_stored(request.form.get("lessons", ""))
 
 
+def _next_tune_num(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT MAX(tune_num) AS m FROM tunes").fetchone()
+    if not row or row["m"] is None:
+        return 1
+    return int(row["m"]) + 1
+
+
+def _tune_num_from_add_form(conn: sqlite3.Connection) -> int | None:
+    raw = (request.form.get("tune_num") or "").strip()
+    if not raw:
+        return _next_tune_num(conn)
+    try:
+        n = int(raw, 10)
+        if n < 1:
+            return _next_tune_num(conn)
+        return n
+    except ValueError:
+        return _next_tune_num(conn)
+
+
+def _add_tune_form_repopulate() -> dict:
+    return {
+        "name": request.form.get("name", "") or "",
+        "tune_num": (request.form.get("tune_num") or "").strip(),
+        "tune_type": request.form.get("tune_type", "") or "",
+        "key": request.form.get("key", "") or "",
+        "composer": request.form.get("composer", "") or "",
+        "notes": request.form.get("notes", "") or "",
+        "link_1": (request.form.get("link_1", "") or "").strip(),
+        "link_2": (request.form.get("link_2", "") or "").strip(),
+        "link_3": (request.form.get("link_3", "") or "").strip(),
+        "practice_groups": request.form.getlist("practice_group"),
+    }
+
+
 def distinct_practice_groups_from_db(conn: sqlite3.Connection) -> list[str]:
     """Sorted unique labels that appear on at least one tune (presets first, then custom A–Z)."""
     rows = conn.execute(
@@ -1047,39 +1082,52 @@ def add_tune():
         name = request.form["name"].strip()
         if not name:
             flash("Tune name is required.", "error")
+            with get_db() as conn:
+                next_num = _next_tune_num(conn)
             return render_template(
                 "tune_form.html",
                 tune=None,
                 tune_type_suggestions=suggestions_merge(distinct_tune_types()),
                 key_suggestions=suggestions_merge(distinct_keys()),
                 action="Add",
+                default_tune_num=next_num,
+                add_form=_add_tune_form_repopulate(),
             )
 
         with get_db() as conn:
+            tune_num = _tune_num_from_add_form(conn)
             conn.execute(
                 """INSERT INTO tunes
-                   (name, tune_type, key, composer,
+                   (name, tune_type, key, composer, tune_num,
+                    link_1, link_2, link_3,
                     notes, practice_group, lessons)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     name,
                     request.form.get("tune_type", ""),
                     request.form.get("key", ""),
                     request.form.get("composer", "").strip(),
+                    tune_num,
+                    (request.form.get("link_1", "") or "").strip(),
+                    (request.form.get("link_2", "") or "").strip(),
+                    (request.form.get("link_3", "") or "").strip(),
                     request.form.get("notes", "") or "",
                     _practice_groups_from_request_form(),
-                    _lessons_from_request_form(),
+                    "",
                 )
             )
             conn.commit()
         return redirect(url_for("index"))
 
+    with get_db() as conn:
+        next_num = _next_tune_num(conn)
     return render_template(
         "tune_form.html",
         tune=None,
         tune_type_suggestions=suggestions_merge(distinct_tune_types()),
         key_suggestions=suggestions_merge(distinct_keys()),
         action="Add",
+        default_tune_num=next_num,
     )
 
 

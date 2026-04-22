@@ -1950,6 +1950,36 @@ html[data-mp-bold-card-titles="on"] .tune-card .card-title {
   min-width: 0;
 }
 
+/* Add tune (full page): shadowed sheet; 16px between each field block and the next label row */
+.tune-modal-body.tune-add-page-body:has(#tuneEditForm) {
+  padding: 0;
+  background: transparent;
+}
+
+.tune-add-page-sheet {
+  padding: 1.25rem 1.35rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.tune-add-page-body .tune-panel-modal-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0.65rem 0 0;
+}
+
+.tune-add-page-body .tune-panel-modal-card.tune-panel-notes-card,
+.tune-add-page-body .tune-panel-modal-card.tune-panel-links-card {
+  padding-top: 0.75rem;
+}
+
+.tune-add-page-body .tune-panel-modal-card > * + * {
+  margin-top: 16px;
+}
+
 .tune-modal-body:has(#tuneEditForm) .tune-panel-modal-heading {
   font-size: 1.35rem;
   font-weight: 700;
@@ -2588,6 +2618,14 @@ html[data-mp-bold-card-titles="on"] .tune-card .card-title {
   border: none;
   box-shadow: none;
   min-width: 0;
+}
+
+.tune-add-page-body:has(#tuneEditForm) .tune-form {
+  gap: 16px;
+}
+
+.tune-add-page-body:has(#tuneEditForm) .tune-panel-modal-actions {
+  margin-top: 0;
 }
 
 .tune-modal-body:has(#tuneEditForm) .tune-form > .instrument-fields {
