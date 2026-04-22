@@ -121,9 +121,9 @@
            class="sidebar-item {% if request.endpoint == 'history_view' %}active{% endif %}">
           Practice History
         </a>
-        <a id="sidebarNavStatistics" href="{{ url_for('statistics_view') }}"
-           class="sidebar-item {% if request.endpoint == 'statistics_view' %}active{% endif %}">
-          Statistics
+        <a id="sidebarNavCharts" href="{{ url_for('charts_view') }}"
+           class="sidebar-item {% if request.endpoint == 'charts_view' %}active{% endif %}">
+          Charts
         </a>
         <a id="sidebarNavRefresh" href="{{ url_for('refresh_view') }}"
            class="sidebar-item {% if request.endpoint == 'refresh_view' %}active{% endif %}">
@@ -212,9 +212,9 @@
          class="sidebar-item {% if request.endpoint == 'history_view' %}active{% endif %}">
         Practice History
       </a>
-      <a id="mobileNavStatistics" href="{{ url_for('statistics_view') }}"
-         class="sidebar-item {% if request.endpoint == 'statistics_view' %}active{% endif %}">
-        Statistics
+      <a id="mobileNavCharts" href="{{ url_for('charts_view') }}"
+         class="sidebar-item {% if request.endpoint == 'charts_view' %}active{% endif %}">
+        Charts
       </a>
       <a id="mobileNavRefresh" href="{{ url_for('refresh_view') }}"
          class="sidebar-item {% if request.endpoint == 'refresh_view' %}active{% endif %}">

@@ -1436,7 +1436,7 @@ def _statistics_payload(conn):
         "SELECT MIN(date_played) AS lo, MAX(date_played) AS hi FROM practice_history"
     ).fetchone()
     lo, hi = bounds["lo"], bounds["hi"]
-    empty_series = {"labels": [], "values": []}
+    empty_series = {"labels": [], "values": [], "day_divisors": []}
     refresh_by_period = _statistics_refresh_series(conn)
     if not lo or not hi:
         return {
@@ -1482,9 +1482,15 @@ def _statistics_payload(conn):
     uniq_map = {r["ym"]: r["c"] for r in uniq_rows}
 
     month_labels = []
+    today_c = central_date_today()
+    day_divisors: list[int] = []
     for key in ym_keys:
         y, m = int(key[:4]), int(key[5:7])
         month_labels.append(date(y, m, 1).strftime("%b %Y"))
+        if (y, m) == (today_c.year, today_c.month):
+            day_divisors.append(max(1, today_c.day))
+        else:
+            day_divisors.append(calendar.monthrange(y, m)[1])
 
     type_rows = conn.execute(
         """
@@ -1522,6 +1528,7 @@ def _statistics_payload(conn):
         "plays_by_month": {
             "labels": month_labels,
             "values": [plays_map.get(k, 0) for k in ym_keys],
+            "day_divisors": day_divisors,
         },
         "unique_tunes_by_month": {
             "labels": month_labels,
@@ -1605,8 +1612,9 @@ def phrase_delete(phrase_id):
     return redirect(url_for("phrases_view"))
 
 
+@app.route("/charts")
 @app.route("/statistics")
-def statistics_view():
+def charts_view():
     with get_db() as conn:
         stats_payload = _statistics_payload(conn)
     return render_template("statistics.html", stats_payload=stats_payload)

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Statistics – Fiddle Practice{% endblock %}
+{% block title %}Charts – Fiddle Practice{% endblock %}
 
 {% block content %}
 <div class="stats-page">
   <div class="page-header">
-    <h2>Statistics</h2>
+    <h2>Charts</h2>
     <p class="stats-intro">
       Visual summaries from your tune practice log. Month charts count every time you marked a tune as practiced
       (including plays logged from sets).
@@ -16,10 +16,20 @@
   <div class="stats-grid">
     {% if stats_payload.has_data %}
     <section class="stats-chart-card stats-chart-card--wide" aria-labelledby="statsPlaysMonthHeading">
-      <h3 id="statsPlaysMonthHeading">Plays per month</h3>
-      <p class="stats-chart-caption">Total practice log entries each calendar month.</p>
+      <div class="stats-chart-card-header">
+        <div>
+          <h3 id="statsPlaysMonthHeading">Practice records</h3>
+          <p class="stats-chart-caption">Practice log entries each calendar month.</p>
+        </div>
+        <div class="stats-chart-toggles">
+          <div class="history-view-toggle" role="group" aria-label="Practice records scale" id="playsMonthModeToggle">
+            <button type="button" class="history-view-toggle__btn history-view-toggle__btn--active" data-mode="total" aria-pressed="true">Monthly total</button>
+            <button type="button" class="history-view-toggle__btn" data-mode="daily_avg" aria-pressed="false">Daily avg</button>
+          </div>
+        </div>
+      </div>
       <div class="stats-chart-wrap">
-        <canvas id="chartPlaysByMonth" aria-label="Line chart of plays per month"></canvas>
+        <canvas id="chartPlaysByMonth" aria-label="Line chart of practice records by month"></canvas>
       </div>
     </section>
 
@@ -120,13 +130,48 @@
 
       const plays = payload.plays_by_month;
       if (plays.labels.length) {
-        new Chart(document.getElementById('chartPlaysByMonth'), {
+        const monthEl = document.getElementById('chartPlaysByMonth');
+        const rawVals = (plays.values || []).map((v) => Number(v) || 0);
+        const divs = (plays.day_divisors && plays.day_divisors.length === rawVals.length)
+          ? plays.day_divisors.map((d) => Math.max(1, Number(d) || 1))
+          : rawVals.map(() => 1);
+        const dailyData = rawVals.map((v, i) => +(v / divs[i]).toFixed(3));
+        let playsMonthMode = 'total';
+
+        function playsMonthSeriesData() {
+          return playsMonthMode === 'daily_avg' ? dailyData : rawVals;
+        }
+
+        function applyPlaysMonthAxis(chart) {
+          const y = chart.options.scales.y;
+          const tip = chart.options.plugins.tooltip.callbacks;
+          if (playsMonthMode === 'daily_avg') {
+            y.ticks = {
+              ...commonTicks,
+              precision: 0,
+              callback: (v) => String(Math.round(Number(v))),
+            };
+            tip.label = (ctx) => {
+              const n = ctx.parsed.y;
+              return ' ' + n.toFixed(2) + ' / day (avg)';
+            };
+          } else {
+            y.ticks = { ...commonTicks, precision: 0 };
+            delete y.ticks.callback;
+            tip.label = (ctx) => {
+              const n = Math.round(ctx.parsed.y);
+              return ' ' + n + ' record' + (n === 1 ? '' : 's');
+            };
+          }
+        }
+
+        const playsMonthChart = new Chart(monthEl, {
           type: 'line',
           data: {
             labels: plays.labels,
             datasets: [{
-              label: 'Plays',
-              data: plays.values,
+              label: 'Practice records',
+              data: playsMonthSeriesData(),
               borderColor: accent,
               backgroundColor: accent + '33',
               fill: true,
@@ -144,7 +189,7 @@
               ...commonPlugins,
               tooltip: {
                 callbacks: {
-                  label: (ctx) => ' ' + ctx.parsed.y + ' play' + (ctx.parsed.y === 1 ? '' : 's'),
+                  label: () => '',
                 },
               },
             },
@@ -160,6 +205,25 @@
               },
             },
           },
+        });
+        applyPlaysMonthAxis(playsMonthChart);
+        playsMonthChart.update();
+
+        function setPlaysMonthActive(value) {
+          document.querySelectorAll('#playsMonthModeToggle [data-mode]').forEach((b) => {
+            const on = b.getAttribute('data-mode') === value;
+            b.classList.toggle('history-view-toggle__btn--active', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        }
+        document.querySelectorAll('#playsMonthModeToggle [data-mode]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            playsMonthMode = btn.dataset.mode;
+            setPlaysMonthActive(playsMonthMode);
+            playsMonthChart.data.datasets[0].data = playsMonthSeriesData();
+            applyPlaysMonthAxis(playsMonthChart);
+            playsMonthChart.update();
+          });
         });
       }
 
