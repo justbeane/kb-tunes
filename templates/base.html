@@ -982,6 +982,29 @@
         }
       }
 
+      const tuneNumInp = form.querySelector('input[name="tune_num"]');
+      if (tuneNumInp) {
+        const v = tuneNumInp.value.trim();
+        const numTd = row && row.querySelector('.col-tune-num');
+        if (numTd) numTd.textContent = v;
+        if (pgCard) {
+          let numSpan = pgCard.querySelector('.card-tune-num');
+          if (!v) {
+            if (numSpan) numSpan.remove();
+          } else {
+            if (!numSpan) {
+              numSpan = document.createElement('span');
+              numSpan.className = 'card-tune-num';
+              numSpan.title = 'Tune No.';
+              const titleEl = pgCard.querySelector('.card-title-text');
+              if (titleEl && titleEl.parentNode)
+                titleEl.parentNode.insertBefore(numSpan, titleEl);
+            }
+            numSpan.textContent = v;
+          }
+        }
+      }
+
       const lessonsTa = form.querySelector('#tune_lessons');
       const lesCell = row && row.querySelector('.col-lessons .lessons-table-display');
       if (lessonsTa && lesCell) {

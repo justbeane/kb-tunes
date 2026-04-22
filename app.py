@@ -287,6 +287,20 @@ def _tune_num_from_add_form(conn: sqlite3.Connection) -> int | None:
         return _next_tune_num(conn)
 
 
+def _parse_tune_num_update(raw: object) -> tuple[int | None, str | None]:
+    """Parse tune_num when editing. Returns (value, error_message). None = clear in DB."""
+    s = raw.strip() if isinstance(raw, str) else str(raw).strip()
+    if not s:
+        return None, None
+    try:
+        n = int(s, 10)
+    except ValueError:
+        return None, "Tune No. must be a whole number."
+    if n < 1:
+        return None, "Tune No. must be at least 1."
+    return n, None
+
+
 def _add_tune_form_repopulate() -> dict:
     return {
         "name": request.form.get("name", "") or "",
@@ -1288,9 +1302,26 @@ def edit_tune(tune_id):
                 except (KeyError, IndexError):
                     return ""
 
+            tune_num_val, tune_num_err = _parse_tune_num_update(
+                request.form.get("tune_num", "")
+            )
+            if tune_num_err:
+                if is_modal:
+                    return jsonify({"ok": False, "error": tune_num_err}), 400
+                flash(tune_num_err, "error")
+                stats = _practice_stats(conn, tune_id)
+                return render_template(
+                    "tune_form.html",
+                    tune=tune,
+                    tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
+                    key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
+                    action="Save",
+                    **stats,
+                )
+
             conn.execute(
                 """UPDATE tunes SET name=?, tune_type=?, key=?, composer=?,
-                          link_1=?, link_2=?, link_3=?, notes=?,
+                          tune_num=?, link_1=?, link_2=?, link_3=?, notes=?,
                           practice_group=?, lessons=?
                    WHERE id=?""",
                 (
@@ -1298,6 +1329,7 @@ def edit_tune(tune_id):
                     request.form.get("tune_type", ""),
                     request.form.get("key", ""),
                     request.form.get("composer", "").strip(),
+                    tune_num_val,
                     _link_from_form("link_1"),
                     _link_from_form("link_2"),
                     _link_from_form("link_3"),
@@ -2408,6 +2440,23 @@ def update_tune_field(tune_id):
     data  = request.get_json()
     field = data.get("field", "")
     raw = data.get("value", "")
+
+    allowed = {
+        "name",
+        "tune_type",
+        "key",
+        "composer",
+        "tune_num",
+        "link_1",
+        "link_2",
+        "link_3",
+        "notes",
+        "practice_group",
+        "lessons",
+    }
+    if field not in allowed:
+        return {"error": "Invalid field"}, 400
+
     if field == "notes":
         value = raw if isinstance(raw, str) else str(raw)
     elif field == "lessons":
@@ -2421,13 +2470,13 @@ def update_tune_field(tune_id):
             value = normalize_practice_groups_stored(
                 raw.strip() if isinstance(raw, str) else str(raw).strip()
             )
+    elif field == "tune_num":
+        value, err = _parse_tune_num_update(raw)
+        if err:
+            return {"ok": False, "error": err}, 400
     else:
         value = raw.strip() if isinstance(raw, str) else str(raw).strip()
 
-    allowed = {"name", "tune_type", "key", "composer",
-               "link_1", "link_2", "link_3", "notes", "practice_group", "lessons"}
-    if field not in allowed:
-        return {"error": "Invalid field"}, 400
     if field == "name" and not value:
         return {"error": "Name cannot be empty"}, 400
 

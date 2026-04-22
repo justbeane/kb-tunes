@@ -9,10 +9,10 @@
     </div>
     {% if tune %}
     <div class="form-group form-group--tune-num">
-      <label for="tune_num_display_field">No.</label>
-      <input type="text" id="tune_num_display_field" class="tune-num-display-input"
+      <label for="tune_num_field">No.</label>
+      <input type="number" id="tune_num_field" name="tune_num" class="tune-num-display-input"
              value="{% if tune.tune_num is not none %}{{ tune.tune_num }}{% endif %}"
-             readonly tabindex="-1" autocomplete="off"
+             min="1" step="1" autocomplete="off"
              aria-label="Tune number" title="Tune number" inputmode="numeric" />
     </div>
     {% else %}
