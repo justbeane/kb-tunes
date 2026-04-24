@@ -13,15 +13,24 @@
            placeholder="Optional" autocomplete="off" />
   </div>
   <div class="form-group set-panel-form-group">
-    <label class="set-panel-section-label" for="set_edit_type">Type</label>
-    <div class="mp-suggest">
-      <input type="text" id="set_edit_type" name="type" class="mp-suggest-input"
-             value="{{ set_record.type or '' }}"
-             placeholder="Optional — types from your library below"
-             autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
-             aria-controls="set_edit_type_menu" />
-      <ul class="mp-suggest-menu" id="set_edit_type_menu" role="listbox" hidden></ul>
-      <script type="application/json" class="mp-suggest-data">{{ set_type_suggestions|tojson }}</script>
+    <span class="set-panel-section-label" id="set_edit_type_label">Type</span>
+    <div class="mp-key-ms" id="setTypeMultiselect" data-mp-ms-name="type" aria-labelledby="set_edit_type_label">
+      <div class="practice-groups-pills" role="list" aria-label="Selected types"></div>
+      <div class="mp-key-ms-combo">
+        <input type="text" id="set_edit_type_pick" class="mp-suggest-input mp-key-ms-input"
+               placeholder="Add type…" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-controls="set_edit_type_ms_menu" />
+        <div class="mp-suggest-menu-shell" hidden>
+          <ul class="mp-suggest-menu mp-key-ms-menu" id="set_edit_type_ms_menu" role="listbox"></ul>
+        </div>
+      </div>
+      <div class="mp-key-ms-hiddens">
+        {% for t in set_record.type|keys_selected %}
+        <input type="hidden" name="type" value="{{ t|e }}" />
+        {% endfor %}
+      </div>
+      <script type="application/json" class="mp-key-ms-all">{{ set_type_suggestions|list|tojson }}</script>
     </div>
   </div>
   <div class="form-group set-panel-form-group">

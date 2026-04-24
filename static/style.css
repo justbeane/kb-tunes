@@ -3326,6 +3326,10 @@ h3.set-panel-section-label {
 }
 
 #setsTable .sets-col-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.35rem;
   padding: 0.35rem 0.65rem;
   vertical-align: middle;
   text-align: left;
@@ -3730,6 +3734,26 @@ html[data-card-dividers="off"] .tune-card .card-actions {
 
 .form-row--tune-line2 {
   align-items: start;
+}
+/* Wider than mobile form stack: key + practice group inputs share a row; stretch columns so the
+   combo lines up when one side has pills and the other does not (pills on top, inputs bottom-aligned). */
+@media (min-width: 521px) {
+  .form-row--tune-line2 {
+    align-items: stretch;
+  }
+  .form-row--tune-line2 .form-group--tune-key,
+  .form-row--tune-line2 .form-group--practice-groups {
+    min-height: 0;
+  }
+  .form-row--tune-line2 .mp-key-ms,
+  .form-row--tune-line2 .mp-practice-groups {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .form-row--tune-line2 .mp-key-ms-combo,
+  .form-row--tune-line2 .mp-practice-groups-combo {
+    margin-top: auto;
+  }
 }
 .form-group--tune-num label {
   font-size: 0.88rem;

@@ -272,6 +272,11 @@ def _keys_from_request_form() -> str:
     return format_keys_from_list([str(x).strip() for x in request.form.getlist("key")])
 
 
+def _set_types_from_request_form() -> str:
+    """Set type tokens; stored like keys (comma-separated, normalized)."""
+    return format_keys_from_list([str(x).strip() for x in request.form.getlist("type")])
+
+
 def suggestions_merge_keys(base: list, *raw_key_fields: str | None) -> list[str]:
     seen = {str(x).strip() for x in base if x and str(x).strip()}
     for ev in raw_key_fields:
@@ -790,7 +795,7 @@ def distinct_keys():
 
 
 def distinct_set_types_union():
-    """Tune types used on tunes plus types stored on sets (suggestions for set type)."""
+    """Tune types from tunes plus type tokens from sets (comma-separated like keys)."""
     with get_db() as conn:
         from_tunes = {
             r["t"]
@@ -802,16 +807,14 @@ def distinct_set_types_union():
                 """
             )
         }
-        from_sets = {
-            r["t"]
-            for r in conn.execute(
-                """
-                SELECT DISTINCT TRIM(type) AS t
-                FROM sets
-                WHERE TRIM(COALESCE(type, '')) != ''
-                """
-            )
-        }
+        from_sets: set[str] = set()
+        for r in conn.execute(
+            "SELECT type FROM sets WHERE TRIM(COALESCE(type, '')) != ''"
+        ):
+            for part in re.split(r"\s*,\s*", (r["type"] or "")):
+                t = part.strip()
+                if t:
+                    from_sets.add(t)
     return sorted(from_tunes | from_sets, key=str.lower)
 
 
@@ -2726,7 +2729,9 @@ def set_panel(set_id):
             ORDER BY {SORT_NAME} ASC
             """
         ).fetchall()
-    set_type_suggestions = suggestions_merge(distinct_set_types_union(), row["type"])
+    set_type_suggestions = suggestions_merge_keys(
+        distinct_set_types_union(), row["type"] if row["type"] is not None else ""
+    )
     set_key_suggestions = suggestions_merge_keys(
         distinct_keys(), row["key"] if row["key"] is not None else ""
     )
@@ -2957,7 +2962,7 @@ def reorder_set_tunes(set_id):
 def edit_set(set_id):
     is_modal = request.form.get("modal") == "1"
     description = request.form.get("description", "").strip()
-    tune_type = request.form.get("type", "").strip()
+    type_stored = _set_types_from_request_form()
     key_stored = _keys_from_request_form()
     with get_db() as conn:
         row = conn.execute("SELECT type FROM sets WHERE id = ?", (set_id,)).fetchone()
@@ -2969,7 +2974,7 @@ def edit_set(set_id):
     with get_db() as conn:
         conn.execute(
             "UPDATE sets SET description = ?, type = ?, key = ? WHERE id = ?",
-            (description, tune_type, key_stored, set_id),
+            (description, type_stored, key_stored, set_id),
         )
         conn.commit()
     if is_modal:

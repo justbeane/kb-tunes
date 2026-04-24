@@ -1092,20 +1092,25 @@
         }
       }
 
-      const typeInp = form.querySelector('#set_edit_type');
-      if (typeInp) {
+      const typeRoot = form.querySelector('#setTypeMultiselect');
+      if (typeRoot) {
+        const typeHiddens = typeRoot.querySelectorAll('.mp-key-ms-hiddens input[name="type"]');
         const typeCell = row.querySelector('.sets-col-type');
         if (typeCell) {
           const typeTd = typeCell.closest('.sets-td-type');
-          const t = typeInp.value.trim();
+          const vals = Array.from(typeHiddens)
+            .map(inp => inp.value.trim())
+            .filter(Boolean);
           typeCell.textContent = '';
-          typeCell.classList.toggle('sets-col-type--empty', !t);
-          if (typeTd) typeTd.classList.toggle('sets-td-type--empty', !t);
-          if (t) {
-            const badge = document.createElement('span');
-            badge.className = 'badge badge-type';
-            badge.textContent = t;
-            typeCell.appendChild(badge);
+          typeCell.classList.toggle('sets-col-type--empty', vals.length === 0);
+          if (typeTd) typeTd.classList.toggle('sets-td-type--empty', vals.length === 0);
+          if (vals.length) {
+            vals.forEach(t => {
+              const badge = document.createElement('span');
+              badge.className = 'badge badge-type';
+              badge.textContent = t;
+              typeCell.appendChild(badge);
+            });
           } else {
             const empty = document.createElement('span');
             empty.className = 'sets-cell-empty';
@@ -1744,7 +1749,6 @@
         form.addEventListener('submit', e => e.preventDefault());
 
         const descInput = tuneModalBody.querySelector('#set_edit_description');
-        const typeInput = tuneModalBody.querySelector('#set_edit_type');
 
         function flashSetField(el, ok) {
           if (!el) return;
@@ -1757,7 +1761,10 @@
           const fd = new FormData();
           fd.append('modal', '1');
           fd.append('description', (descInput && descInput.value != null ? descInput.value : '').trim());
-          fd.append('type', typeInput ? typeInput.value.trim() : '');
+          form.querySelectorAll('#setTypeMultiselect .mp-key-ms-hiddens input[name="type"]').forEach((inp) => {
+            const v = (inp.value || '').trim();
+            if (v) fd.append('type', v);
+          });
           form.querySelectorAll('.mp-key-ms-hiddens input[name="key"]').forEach((inp) => {
             const v = (inp.value || '').trim();
             if (v) fd.append('key', v);
@@ -1792,18 +1799,15 @@
           });
         });
 
-        let typeOriginal = typeInput ? typeInput.value : '';
-        typeInput?.addEventListener('focus', () => { typeOriginal = typeInput.value; });
-        typeInput?.addEventListener('blur', () => {
-          if ((typeInput.value || '').trim() === (typeOriginal || '').trim()) return;
-          const prev = typeOriginal;
-          saveSetFields(typeInput, ok => {
-            if (ok) typeOriginal = typeInput.value;
-            else typeInput.value = prev;
+        const setTypeRoot = form.querySelector('#setTypeMultiselect');
+        const setTypeInp = setTypeRoot && setTypeRoot.querySelector('.mp-key-ms-input');
+        if (setTypeRoot) {
+          setTypeRoot.addEventListener('mp-key-ms-change', () => {
+            saveSetFields(setTypeInp, null);
           });
-        });
+        }
 
-        const setKeyRoot = form.querySelector('.mp-key-ms');
+        const setKeyRoot = form.querySelector('#setKeyMultiselect');
         const setKeyInp = setKeyRoot && setKeyRoot.querySelector('.mp-key-ms-input');
         if (setKeyRoot) {
           setKeyRoot.addEventListener('mp-key-ms-change', () => {

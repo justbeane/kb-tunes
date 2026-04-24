@@ -76,9 +76,19 @@
     return out;
   }
 
-  function getSelectedSet(hiddensEl) {
+  function getFieldName(rootEl) {
+    var n = (rootEl.getAttribute('data-mp-ms-name') || 'key').trim();
+    if (!/^[a-zA-Z0-9_]+$/.test(n)) n = 'key';
+    return n;
+  }
+
+  function hiddensInputs(hiddensEl, fieldName) {
+    return hiddensEl.querySelectorAll('input[name="' + fieldName + '"]');
+  }
+
+  function getSelectedSet(hiddensEl, fieldName) {
     var out = new Set();
-    hiddensEl.querySelectorAll('input[name="key"]').forEach(function (inp) {
+    hiddensInputs(hiddensEl, fieldName).forEach(function (inp) {
       var v = (inp.value || '').trim();
       if (v) out.add(v);
     });
@@ -96,18 +106,19 @@
     return out;
   }
 
-  function emitChange(rootEl, hiddensEl) {
+  function emitChange(rootEl, hiddensEl, fieldName) {
     var vals = [];
-    hiddensEl.querySelectorAll('input[name="key"]').forEach(function (inp) {
+    hiddensInputs(hiddensEl, fieldName).forEach(function (inp) {
       var v = (inp.value || '').trim();
       if (v) vals.push(v);
     });
     rootEl.dispatchEvent(
-      new CustomEvent('mp-key-ms-change', { bubbles: true, detail: { values: vals } })
+      new CustomEvent('mp-key-ms-change', { bubbles: true, detail: { values: vals, name: fieldName } })
     );
   }
 
   function mpkAttach(rootEl, allLabels) {
+    var fieldName = getFieldName(rootEl);
     var pillsEl = rootEl.querySelector('.practice-groups-pills');
     var hiddensEl = rootEl.querySelector('.mp-key-ms-hiddens');
     var combo = rootEl.querySelector('.mp-key-ms-combo');
@@ -137,7 +148,7 @@
         hidden.remove();
         span.remove();
         if (activeCombo === combo) renderMenu();
-        emitChange(rootEl, hiddensEl);
+        emitChange(rootEl, hiddensEl, fieldName);
       });
       span.appendChild(labEl);
       span.appendChild(btn);
@@ -146,23 +157,23 @@
 
     function initFromHiddens() {
       pillsEl.innerHTML = '';
-      hiddensEl.querySelectorAll('input[name="key"]').forEach(addPillForHidden);
+      hiddensInputs(hiddensEl, fieldName).forEach(addPillForHidden);
     }
 
     function pickLabel(text, refocusInput) {
       var t = String(text || '').trim();
-      if (!t || getSelectedSet(hiddensEl).has(t)) return;
+      if (!t || getSelectedSet(hiddensEl, fieldName).has(t)) return;
       rootEl._mpkSkipOpen = true;
       var hid = document.createElement('input');
       hid.type = 'hidden';
-      hid.name = 'key';
+      hid.name = fieldName;
       hid.value = t;
       hiddensEl.appendChild(hid);
       addPillForHidden(hid);
       input.value = '';
       hideMenu();
       if (refocusInput !== false) input.focus();
-      emitChange(rootEl, hiddensEl);
+      emitChange(rootEl, hiddensEl, fieldName);
       setTimeout(function () {
         rootEl._mpkSkipOpen = false;
       }, 0);
@@ -190,7 +201,7 @@
     }
 
     function renderMenu() {
-      var sel = getSelectedSet(hiddensEl);
+      var sel = getSelectedSet(hiddensEl, fieldName);
       var filtered = filterAvailable(all, sel, input.value);
       menu.innerHTML = '';
       filtered.forEach(function (text) {

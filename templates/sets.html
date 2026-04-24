@@ -65,9 +65,15 @@
         <td class="sets-td sets-td-tunes sets-col-tunes-cell" data-sets-col="1">
           <span class="sets-col-tunes">{% if s.tunes_names %}{{ s.tunes_names }}{% endif %}</span>
         </td>
-        <td class="sets-td sets-td-type{% if not s.type %} sets-td-type--empty{% endif %}" data-sets-col="2">
-          <div class="sets-col-type{% if not s.type %} sets-col-type--empty{% endif %}">
-            {% if s.type %}<span class="badge badge-type">{{ s.type }}</span>{% else %}<span class="sets-cell-empty">—</span>{% endif %}
+        <td class="sets-td sets-td-type{% if not (s.type|keys_selected) %} sets-td-type--empty{% endif %}" data-sets-col="2">
+          <div class="sets-col-type{% if not (s.type|keys_selected) %} sets-col-type--empty{% endif %}">
+            {% if s.type|keys_selected %}
+            {% for tt in s.type|keys_selected %}
+            <span class="badge badge-type">{{ tt }}</span>
+            {% endfor %}
+            {% else %}
+            <span class="sets-cell-empty">—</span>
+            {% endif %}
           </div>
         </td>
         <td class="sets-td sets-td-last" data-sets-col="3">
