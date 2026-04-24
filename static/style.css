@@ -2662,6 +2662,10 @@ html[data-mp-bold-card-titles="on"] .tune-card .card-title {
   max-height: 9.9rem;
 }
 
+.tune-modal-body:has(#tuneEditForm) .mp-suggest-menu-shell .mp-suggest-menu {
+  max-height: 9.9rem;
+}
+
 .tune-modal-body:has(#tuneEditForm) .mp-suggest-item {
   font-size: 0.81rem;
   padding: 0.3rem 0.65rem;
@@ -3717,13 +3721,15 @@ html[data-card-dividers="off"] .tune-card .card-actions {
   min-width: 0;
 }
 
-/* Tune name + readonly tune number (same row) */
-.form-row--tune-name-num {
-  grid-template-columns: minmax(0, 1fr) 5.5rem;
+/* Tune panel / form: line 1 = name, type, no · line 2 = key, practice groups (wide viewports) */
+.form-row--tune-line1 {
+  /* Name ~50% wider than Type: 3fr vs 2fr on the shared width (was ~1fr vs ~18rem max type) */
+  grid-template-columns: minmax(0, 3fr) minmax(7.5rem, 2fr) 5.5rem;
   align-items: end;
 }
-.form-row--tune-name-num.form-row--name-only {
-  grid-template-columns: 1fr;
+
+.form-row--tune-line2 {
+  align-items: start;
 }
 .form-group--tune-num label {
   font-size: 0.88rem;
@@ -3864,10 +3870,47 @@ html[data-card-dividers="off"] .tune-card .card-actions {
   z-index: 50;
   max-height: 11rem;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* Key / practice-groups dropdown: border + radius on shell; list scrolls inside (avoids scrollbar vs rounded-corner glitches) */
+.mp-key-ms-combo,
+.mp-practice-groups-combo {
+  position: relative;
+  width: 100%;
+}
+
+.mp-suggest-menu-shell {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.mp-suggest-menu-shell .mp-suggest-menu {
+  position: static;
+  left: auto;
+  right: auto;
+  top: auto;
+  z-index: auto;
+  max-height: 11rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  scrollbar-gutter: stable;
 }
 
 .mp-suggest-item {
@@ -4284,7 +4327,8 @@ footer {
   border: 0;
 }
 
-/* Practice groups: fixed vocabulary, multi-select in forms and table */
+/* Practice groups + key multiselect: same vertical rhythm (pills · combo · hiddens) */
+.mp-key-ms,
 .mp-practice-groups {
   display: flex;
   flex-direction: column;
@@ -4331,10 +4375,6 @@ footer {
 .practice-group-pill-remove:hover {
   color: var(--text);
   background: color-mix(in srgb, var(--text) 8%, transparent);
-}
-.mp-practice-groups-combo {
-  position: relative;
-  width: 100%;
 }
 .practice-groups-grid {
   display: grid;
@@ -6346,11 +6386,22 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
   }
   .search-input { width: 100%; }
   .form-row { grid-template-columns: 1fr; }
-  .form-row--tune-name-num {
+  /* Narrow screens: name + No on one row; Type full width below (order: name, type, no in markup) */
+  .form-row--tune-line1 {
     grid-template-columns: minmax(0, 1fr) 4.25rem;
+    grid-template-rows: auto auto;
   }
-  .form-row--tune-name-num.form-row--name-only {
-    grid-template-columns: 1fr;
+  .form-row--tune-line1 .form-group--tune-name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .form-row--tune-line1 .form-group--tune-num {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .form-row--tune-line1 .form-group--tune-type {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
   header { padding: 0 1rem; }
   main { padding: 1.25rem 1rem; }

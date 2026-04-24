@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="{{ url_for('static', filename='mp_suggest.js') }}" defer></script>
   <script src="{{ url_for('static', filename='mp_practice_groups.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_key_multiselect.js') }}" defer></script>
   <script src="{{ url_for('static', filename='mp_custom_select.js') }}" defer></script>
   <script>
     (function () {
@@ -923,24 +924,39 @@
 
     window.mpOpenSetPracticeModal = mpOpenSetPracticeModal;
 
-    function mpSyncTuneTableRowFromModal() {
-      const form = tuneModalBody.querySelector('#tuneEditForm');
-      const table = document.getElementById('tuneTable');
-      if (!form || !table) return;
-
-      let tuneId;
+    /** Resolves tune id for sync; form has data-tune-id; URL may include an app path prefix. */
+    function mpTuneIdFromEditForm(form) {
+      if (!form) return null;
+      if (form.dataset.tuneId) return String(form.dataset.tuneId);
       try {
         const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
-        if (parts[0] !== 'edit' || !parts[1]) return;
-        tuneId = parts[1];
-      } catch (e) {
-        return;
-      }
+        const i = parts.indexOf('edit');
+        if (i >= 0 && parts[i + 1]) return String(parts[i + 1]);
+      } catch (e) {}
+      return null;
+    }
 
-      const row = table.querySelector('tbody tr[data-id="' + tuneId + '"]');
-      const pgCard = document.querySelector(
-        '#practiceGroupCardGrid .tune-card[data-tune-id="' + tuneId + '"]'
-      );
+    function mpSetIdFromSetEditForm(form) {
+      if (!form) return null;
+      if (form.dataset.setId) return String(form.dataset.setId);
+      try {
+        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
+        const i = parts.indexOf('set');
+        if (i >= 0 && parts[i + 1] && parts[i + 2] === 'edit') return String(parts[i + 1]);
+      } catch (e) {}
+      return null;
+    }
+
+    function mpSyncTuneTableRowFromModal() {
+      const form = tuneModalBody.querySelector('#tuneEditForm');
+      if (!form) return;
+      const table = document.getElementById('tuneTable');
+
+      const tuneId = mpTuneIdFromEditForm(form);
+      if (!tuneId) return;
+
+      const row = table ? table.querySelector('tbody tr[data-id="' + tuneId + '"]') : null;
+      const pgCard = document.querySelector('.tune-card[data-tune-id="' + tuneId + '"]');
       if (!row && !pgCard) return;
 
       const nameInp = form.querySelector('#tune_name_field');
@@ -957,10 +973,14 @@
         if (inp) inp.value = tt.value.trim();
       }
 
-      const keyInp = form.querySelector('#tune_key');
-      if (keyInp) {
+      const keyHiddens = form.querySelectorAll('.mp-key-ms-hiddens input[name="key"]');
+      if (keyHiddens.length) {
+        const keyJoined = Array.from(keyHiddens)
+          .map((i) => i.value.trim())
+          .filter(Boolean)
+          .join(', ');
         const inp = row && row.querySelector('input[data-field="key"]');
-        if (inp) inp.value = keyInp.value.trim();
+        if (inp) inp.value = keyJoined;
       }
 
       const composerInp = form.querySelector('#tune_composer');
@@ -1057,14 +1077,8 @@
       const table = document.getElementById('setsTable');
       if (!form || !table) return;
 
-      let setId;
-      try {
-        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
-        if (parts[0] !== 'set' || parts[2] !== 'edit' || !parts[1]) return;
-        setId = parts[1];
-      } catch (e) {
-        return;
-      }
+      const setId = mpSetIdFromSetEditForm(form);
+      if (!setId) return;
 
       const row = table.querySelector('tbody tr[data-id="' + setId + '"]');
       if (!row) return;
@@ -1127,14 +1141,8 @@
       const form = tuneModalBody.querySelector('#tuneEditForm');
       const ta = tuneModalBody.querySelector('.tune-panel-notes-input');
       if (!form || !ta) return;
-      let tuneId;
-      try {
-        const parts = new URL(form.action, location.href).pathname.split('/').filter(Boolean);
-        if (parts[0] !== 'edit' || !parts[1]) return;
-        tuneId = parts[1];
-      } catch (e) {
-        return;
-      }
+      const tuneId = mpTuneIdFromEditForm(form);
+      if (!tuneId) return;
       const card = document.querySelector('.tune-card[data-tune-id="' + tuneId + '"]');
       if (!card) return;
       const has = !!ta.value.trim();
@@ -1160,6 +1168,10 @@
       if (!tuneModalBackdrop) return;
       mpCloseSetPracticeModal();
       mpClearTunePickerOutsideListener();
+      const ae = document.activeElement;
+      if (ae && tuneModalBody && tuneModalBody.contains(ae) && typeof ae.blur === 'function') {
+        ae.blur();
+      }
       const wasNewSet = tuneModalBody.querySelector('#setEditForm')?.dataset.newSet === '1';
       tuneModalBackdrop.hidden = true;
       tuneModalBackdrop.setAttribute('aria-hidden', 'true');
@@ -1296,7 +1308,7 @@
       function saveField(fieldName, value, el) {
         if (!tuneUpdateUrl) return Promise.resolve(false);
         const payloadValue =
-          fieldName === 'practice_group' && Array.isArray(value)
+          (fieldName === 'practice_group' || fieldName === 'key') && Array.isArray(value)
             ? value
             : String(value);
         return fetch(tuneUpdateUrl, {
@@ -1307,6 +1319,10 @@
           .then(r => r.json().then(j => ({ ok: r.ok && j.ok, j })).catch(() => ({ ok: false })))
           .then(({ ok }) => {
             if (el) flashInput(el, ok);
+            if (ok) {
+              mpSyncTuneTableRowFromModal();
+              mpSyncTuneCardNotesIndicatorFromModal();
+            }
             return ok;
           })
           .catch(() => {
@@ -1530,7 +1546,17 @@
       // Suggest / pills must bind before blur autosave so values commit before save
       if (window.mpSuggestInitScope) window.mpSuggestInitScope(tuneModalBody);
       if (window.mpPracticeGroupsInitScope) window.mpPracticeGroupsInitScope(tuneModalBody);
+      if (window.mpKeyMultiselectInitScope) window.mpKeyMultiselectInitScope(tuneModalBody);
       if (window.mpEnhanceCustomSelectsIn) window.mpEnhanceCustomSelectsIn(tuneModalBody);
+
+      const keyRoot = tuneModalBody.querySelector('.mp-key-ms');
+      if (keyRoot && tuneUpdateUrl) {
+        const keyInp = keyRoot.querySelector('.mp-key-ms-input');
+        keyRoot.addEventListener('mp-key-ms-change', (e) => {
+          const vals = e.detail && Array.isArray(e.detail.values) ? e.detail.values : [];
+          saveField('key', vals, keyInp || keyRoot);
+        });
+      }
 
       if (form) {
         // Prevent accidental full-page submit
@@ -1608,7 +1634,7 @@
     function mpReloadSetPanel() {
       const url = tuneModalBody.querySelector('#setEditForm')?.dataset.setPanelUrl;
       if (!url || !tuneModalBody) return Promise.resolve();
-      return fetch(url)
+      return fetch(url, { cache: 'no-store' })
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(html => {
           tuneModalBody.innerHTML = html;
@@ -1732,6 +1758,10 @@
           fd.append('modal', '1');
           fd.append('description', (descInput && descInput.value != null ? descInput.value : '').trim());
           fd.append('type', typeInput ? typeInput.value.trim() : '');
+          form.querySelectorAll('.mp-key-ms-hiddens input[name="key"]').forEach((inp) => {
+            const v = (inp.value || '').trim();
+            if (v) fd.append('key', v);
+          });
           fetch(form.action, {
             method: 'POST',
             body: fd,
@@ -1741,6 +1771,7 @@
             .then(({ ok, j }) => {
               if (elForFlash) flashSetField(elForFlash, ok);
               if (!ok) alert(j.error || 'Could not save.');
+              if (ok) mpSyncSetsTableRowFromModal();
               if (onDone) onDone(ok);
             })
             .catch(() => {
@@ -1771,9 +1802,18 @@
             else typeInput.value = prev;
           });
         });
+
+        const setKeyRoot = form.querySelector('.mp-key-ms');
+        const setKeyInp = setKeyRoot && setKeyRoot.querySelector('.mp-key-ms-input');
+        if (setKeyRoot) {
+          setKeyRoot.addEventListener('mp-key-ms-change', () => {
+            saveSetFields(setKeyInp, null);
+          });
+        }
       }
 
       if (window.mpSuggestInitScope) window.mpSuggestInitScope(tuneModalBody);
+      if (window.mpKeyMultiselectInitScope) window.mpKeyMultiselectInitScope(tuneModalBody);
       if (window.mpEnhanceCustomSelectsIn) window.mpEnhanceCustomSelectsIn(tuneModalBody);
 
       const addUrl = form?.dataset.addTuneUrl;
@@ -2177,7 +2217,7 @@
       tuneModalBackdrop.hidden = false;
       tuneModalBackdrop.setAttribute('aria-hidden', 'false');
 
-      fetch(url)
+      fetch(url, { cache: 'no-store' })
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(html => {
           tuneModalBody.innerHTML = html;
@@ -2195,7 +2235,7 @@
       tuneModalBackdrop.hidden = false;
       tuneModalBackdrop.setAttribute('aria-hidden', 'false');
 
-      fetch(url)
+      fetch(url, { cache: 'no-store' })
         .then(r => { if (!r.ok) throw new Error(); return r.text(); })
         .then(html => {
           tuneModalBody.innerHTML = html;

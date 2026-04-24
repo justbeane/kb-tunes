@@ -25,6 +25,16 @@ app = Flask(__name__)
 app.secret_key = "katie-music-practice-key"
 mimetypes.add_type("application/manifest+json", ".webmanifest")
 
+
+@app.after_request
+def _no_cache_html_responses(response):
+    """Avoid stale main views after form redirects (POST/PRG) or back/forward navigation."""
+    ct = response.headers.get("Content-Type", "")
+    if ct.startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
 _APP_ROOT = Path(__file__).resolve().parent
 LESSON_TUNES_DIR = _APP_ROOT / "lesson_tunes"
 _LEGACY_DB = _APP_ROOT / "songs.db"
@@ -32,6 +42,7 @@ DB_PATH = str(_APP_ROOT / "tunes.db")
 if _LEGACY_DB.exists() and not Path(DB_PATH).exists():
     _LEGACY_DB.rename(Path(DB_PATH))
 SETTINGS_PATH = str(_APP_ROOT / "settings.json")
+BACKUPS_DIR = _APP_ROOT / "__local__" / "backups"
 
 # IANA zone for all timestamps persisted in SQLite (wall time, DST-aware).
 DB_TIMEZONE = ZoneInfo("America/Chicago")
@@ -224,6 +235,66 @@ def _practice_groups_from_request_form() -> str:
     return format_practice_groups_from_list(request.form.getlist("practice_group"))
 
 
+# Keys: comma-separated in DB (like practice_group), multiple picks in the tune/set forms.
+MAX_KEY_TOKEN_LEN = 40
+
+
+def normalize_keys_stored(raw: str | None) -> str:
+    """Unique keys (case-insensitive), sorted A–Z, stored as comma-separated."""
+    if not raw or not str(raw).strip():
+        return ""
+    parts = re.split(r"\s*,\s*", str(raw).strip())
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in parts:
+        t = p.strip()
+        if len(t) > MAX_KEY_TOKEN_LEN:
+            t = t[:MAX_KEY_TOKEN_LEN].rstrip()
+        if not t:
+            continue
+        low = t.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        out.append(t)
+    out.sort(key=str.lower)
+    return ", ".join(out)
+
+
+def format_keys_from_list(labels: list[str]) -> str:
+    parts = [p for p in (str(x).strip() for x in labels) if p]
+    if not parts:
+        return ""
+    return normalize_keys_stored(", ".join(parts))
+
+
+def _keys_from_request_form() -> str:
+    return format_keys_from_list([str(x).strip() for x in request.form.getlist("key")])
+
+
+def suggestions_merge_keys(base: list, *raw_key_fields: str | None) -> list[str]:
+    seen = {str(x).strip() for x in base if x and str(x).strip()}
+    for ev in raw_key_fields:
+        if ev is None:
+            continue
+        s = str(ev).strip()
+        if not s:
+            continue
+        for part in re.split(r"\s*,\s*", s):
+            p = part.strip()
+            if p:
+                seen.add(p)
+    return sorted(seen, key=str.lower)
+
+
+@app.template_filter("keys_selected")
+def keys_selected_filter(stored):
+    s = normalize_keys_stored(stored or "")
+    if not s:
+        return []
+    return [p.strip() for p in re.split(r"\s*,\s*", s) if p.strip()]
+
+
 @app.template_filter("practice_groups_selected")
 def practice_groups_selected_filter(stored):
     s = normalize_practice_groups_stored(stored or "")
@@ -306,7 +377,7 @@ def _add_tune_form_repopulate() -> dict:
         "name": request.form.get("name", "") or "",
         "tune_num": (request.form.get("tune_num") or "").strip(),
         "tune_type": request.form.get("tune_type", "") or "",
-        "key": request.form.get("key", "") or "",
+        "key_list": request.form.getlist("key"),
         "composer": request.form.get("composer", "") or "",
         "notes": request.form.get("notes", "") or "",
         "link_1": (request.form.get("link_1", "") or "").strip(),
@@ -446,6 +517,40 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def _backup_tunes_db_filename() -> str:
+    """tunes_bu_YYYYMMDD_#####.db; ##### = seconds since start of day (US Central)."""
+    now = datetime.now(DB_TIMEZONE)
+    ymd = now.strftime("%Y%m%d")
+    sec = now.hour * 3600 + now.minute * 60 + now.second
+    return f"tunes_bu_{ymd}_{sec:05d}.db"
+
+
+def _backup_tunes_db(conn: sqlite3.Connection) -> None:
+    """Write a consistent snapshot to __local__/backups (used before destructive or risky writes)."""
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    dest = BACKUPS_DIR / _backup_tunes_db_filename()
+    bck = sqlite3.connect(str(dest))
+    try:
+        conn.backup(bck)
+    finally:
+        bck.close()
+
+
+def _no_practice_rows_on_central_day(conn: sqlite3.Connection, ymd: str) -> bool:
+    """ymd is YYYY-MM-DD. True if there are no practice rows for that calendar date."""
+    row = conn.execute(
+        """
+        SELECT
+          (SELECT COUNT(*) FROM practice_history WHERE substr(date_played, 1, 10) = ?)
+        + (SELECT COUNT(*) FROM set_practice WHERE substr(date_practiced, 1, 10) = ?)
+        AS n
+        """,
+        (ymd, ymd),
+    ).fetchone()
+    n = int(row["n"] if row else 0)
+    return n == 0
 
 
 def _refresh_log_drop_legacy_columns(conn) -> None:
@@ -659,17 +764,29 @@ def distinct_tune_types():
 
 
 def distinct_keys():
-    """Distinct non-empty key values from tunes."""
+    """Distinct key tokens from tunes and sets (comma-separated in each cell)."""
     with get_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT DISTINCT TRIM(s.key) AS k
-            FROM tunes s
-            WHERE TRIM(COALESCE(s.key, '')) != ''
-            ORDER BY k COLLATE NOCASE
-            """
+        trows = conn.execute(
+            "SELECT key FROM tunes WHERE TRIM(COALESCE(key, '')) != ''"
         ).fetchall()
-    return [r["k"] for r in rows]
+        try:
+            srows = conn.execute(
+                "SELECT key FROM sets WHERE TRIM(COALESCE(key, '')) != ''"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            srows = []
+    seen: set[str] = set()
+    for r in trows:
+        for part in re.split(r"\s*,\s*", (r["key"] or "")):
+            p = part.strip()
+            if p:
+                seen.add(p)
+    for r in srows:
+        for part in re.split(r"\s*,\s*", (r["key"] or "")):
+            p = part.strip()
+            if p:
+                seen.add(p)
+    return sorted(seen, key=str.lower)
 
 
 def distinct_set_types_union():
@@ -715,9 +832,12 @@ def table_tune_key_suggestions(tunes_rows):
         tt = (tune["tune_type"] or "").strip()
         if tt:
             types.add(tt)
-        k = (tune["key"] or "").strip()
-        if k:
-            keys.add(k)
+        raw_k = (tune["key"] or "").strip()
+        if raw_k:
+            for part in re.split(r"\s*,\s*", raw_k):
+                p = part.strip()
+                if p:
+                    keys.add(p)
     return sorted(types, key=str.lower), sorted(keys, key=str.lower)
 
 
@@ -943,6 +1063,10 @@ def init_db():
             )
         except sqlite3.OperationalError:
             pass
+        try:
+            conn.execute("ALTER TABLE sets ADD COLUMN key TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
 
@@ -1102,7 +1226,7 @@ def add_tune():
                 "tune_form.html",
                 tune=None,
                 tune_type_suggestions=suggestions_merge(distinct_tune_types()),
-                key_suggestions=suggestions_merge(distinct_keys()),
+                key_suggestions=suggestions_merge_keys(distinct_keys()),
                 action="Add",
                 default_tune_num=next_num,
                 add_form=_add_tune_form_repopulate(),
@@ -1119,7 +1243,7 @@ def add_tune():
                 (
                     name,
                     request.form.get("tune_type", ""),
-                    request.form.get("key", ""),
+                    _keys_from_request_form(),
                     request.form.get("composer", "").strip(),
                     tune_num,
                     (request.form.get("link_1", "") or "").strip(),
@@ -1139,7 +1263,7 @@ def add_tune():
         "tune_form.html",
         tune=None,
         tune_type_suggestions=suggestions_merge(distinct_tune_types()),
-        key_suggestions=suggestions_merge(distinct_keys()),
+        key_suggestions=suggestions_merge_keys(distinct_keys()),
         action="Add",
         default_tune_num=next_num,
     )
@@ -1251,7 +1375,7 @@ def tune_panel(tune_id):
         tune=tune,
         soundslice_embeds=_soundslice_slice_ids_from_tune(tune),
         tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
-        key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
+        key_suggestions=suggestions_merge_keys(distinct_keys(), tune["key"]),
         tune_sets=tune_sets,
         lesson_audio_files=lesson_audio_files,
         **stats,
@@ -1279,7 +1403,7 @@ def edit_tune(tune_id):
                     "tune_form.html",
                     tune=tune,
                     tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
-                    key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
+                    key_suggestions=suggestions_merge_keys(distinct_keys(), tune["key"]),
                     action="Save",
                     **stats,
                 )
@@ -1314,7 +1438,7 @@ def edit_tune(tune_id):
                     "tune_form.html",
                     tune=tune,
                     tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
-                    key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
+                    key_suggestions=suggestions_merge_keys(distinct_keys(), tune["key"]),
                     action="Save",
                     **stats,
                 )
@@ -1327,7 +1451,7 @@ def edit_tune(tune_id):
                 (
                     name,
                     request.form.get("tune_type", ""),
-                    request.form.get("key", ""),
+                    _keys_from_request_form(),
                     request.form.get("composer", "").strip(),
                     tune_num_val,
                     _link_from_form("link_1"),
@@ -1350,7 +1474,7 @@ def edit_tune(tune_id):
         "tune_form.html",
         tune=tune,
         tune_type_suggestions=suggestions_merge(distinct_tune_types(), tune["tune_type"]),
-        key_suggestions=suggestions_merge(distinct_keys(), tune["key"]),
+        key_suggestions=suggestions_merge_keys(distinct_keys(), tune["key"]),
         action="Save",
         **stats,
     )
@@ -1390,6 +1514,8 @@ def practiced_tune(tune_id):
         )
         row = conn.execute("SELECT name FROM tunes WHERE id = ?", (tune_id,)).fetchone()
         if row:
+            if _no_practice_rows_on_central_day(conn, ts[:10]):
+                _backup_tunes_db(conn)
             conn.execute(
                 "INSERT INTO practice_history (tune_id, date_played) VALUES (?, ?)",
                 (tune_id, ts)
@@ -1410,6 +1536,8 @@ def record_set_practice(set_id):
         set_row = conn.execute("SELECT id FROM sets WHERE id = ?", (set_id,)).fetchone()
         if not set_row:
             return jsonify({"ok": False, "error": "Set not found"}), 404
+        if _no_practice_rows_on_central_day(conn, ts[:10]):
+            _backup_tunes_db(conn)
         conn.execute(
             "INSERT INTO set_practice (set_id, date_practiced) VALUES (?, ?)",
             (set_id, ts),
@@ -2290,7 +2418,11 @@ def times_played():
             SELECT s.*,
                    COUNT(p.id) AS period_count,
                    (SELECT MAX(ph.date_played) FROM practice_history ph
-                    WHERE ph.tune_id = s.id) AS last_practiced
+                    WHERE ph.tune_id = s.id) AS last_practiced,
+                   (SELECT CASE WHEN MAX(ph.date_played) IS NULL THEN NULL
+                                ELSE CAST(ROUND(julianday('{_julianday_anchor_sql()}') - julianday(MAX(ph.date_played))) AS INTEGER)
+                           END
+                      FROM practice_history ph WHERE ph.tune_id = s.id) AS days_since_last
             FROM tunes s
             LEFT JOIN practice_history p
                 ON p.tune_id = s.id
@@ -2478,6 +2610,13 @@ def update_tune_field(tune_id):
             value = normalize_practice_groups_stored(
                 raw.strip() if isinstance(raw, str) else str(raw).strip()
             )
+    elif field == "key":
+        if isinstance(raw, list):
+            value = format_keys_from_list([str(x).strip() for x in raw])
+        else:
+            value = normalize_keys_stored(
+                raw.strip() if isinstance(raw, str) else str(raw).strip()
+            )
     elif field == "tune_num":
         value, err = _parse_tune_num_update(raw)
         if err:
@@ -2539,8 +2678,8 @@ def create_set_draft():
     """Create an empty set and return its panel URL (for Add New Set → same UI as View Set)."""
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO sets (description, type) VALUES (?, ?)",
-            ("", ""),
+            "INSERT INTO sets (description, type, key) VALUES (?, ?, ?)",
+            ("", "", ""),
         )
         set_id = cur.lastrowid
         conn.commit()
@@ -2588,6 +2727,9 @@ def set_panel(set_id):
             """
         ).fetchall()
     set_type_suggestions = suggestions_merge(distinct_set_types_union(), row["type"])
+    set_key_suggestions = suggestions_merge_keys(
+        distinct_keys(), row["key"] if row["key"] is not None else ""
+    )
     tune_picker_add_options = [
         {"id": int(r["id"]), "name": r["name"]} for r in tunes_available_for_set
     ]
@@ -2605,6 +2747,7 @@ def set_panel(set_id):
         "set_panel.html",
         set_record=row,
         set_type_suggestions=set_type_suggestions,
+        set_key_suggestions=set_key_suggestions,
         set_tunes=set_tunes,
         tunes_available_for_set=tunes_available_for_set,
         tune_picker_add_options=tune_picker_add_options,
@@ -2815,6 +2958,7 @@ def edit_set(set_id):
     is_modal = request.form.get("modal") == "1"
     description = request.form.get("description", "").strip()
     tune_type = request.form.get("type", "").strip()
+    key_stored = _keys_from_request_form()
     with get_db() as conn:
         row = conn.execute("SELECT type FROM sets WHERE id = ?", (set_id,)).fetchone()
         if not row:
@@ -2824,8 +2968,8 @@ def edit_set(set_id):
             return redirect(url_for("sets_view"))
     with get_db() as conn:
         conn.execute(
-            "UPDATE sets SET description = ?, type = ? WHERE id = ?",
-            (description, tune_type, set_id),
+            "UPDATE sets SET description = ?, type = ?, key = ? WHERE id = ?",
+            (description, tune_type, key_stored, set_id),
         )
         conn.commit()
     if is_modal:
@@ -2844,6 +2988,7 @@ def delete_set(set_id):
     with get_db() as conn:
         exists = conn.execute("SELECT id FROM sets WHERE id = ?", (set_id,)).fetchone()
         if exists:
+            _backup_tunes_db(conn)
             conn.execute("DELETE FROM sets WHERE id = ?", (set_id,))
             conn.commit()
             if is_modal:
@@ -3226,6 +3371,7 @@ def delete_tune(tune_id):
     with get_db() as conn:
         row = conn.execute("SELECT name FROM tunes WHERE id = ?", (tune_id,)).fetchone()
         if row:
+            _backup_tunes_db(conn)
             conn.execute("DELETE FROM tunes WHERE id = ?", (tune_id,))
             conn.commit()
             if is_modal:

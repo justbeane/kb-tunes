@@ -106,7 +106,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 6 9 17l-5-5"/>
           </svg>
-          Practiced
+          <span class="practiced-btn-label">{% if tune.days_since_last is not none and tune.days_since_last == 0 %}Practiced{% else %}Practice{% endif %}</span>
         </button>
         <div class="card-meta-right" style="position:relative;z-index:1;">
           <span class="practice-count" title="{{ tune.practice_count }} practice session{{ 's' if tune.practice_count != 1 else '' }}">
@@ -149,6 +149,8 @@
           if (data.ok) {
             btn.classList.add('practiced-flash');
             setTimeout(() => btn.classList.remove('practiced-flash'), 900);
+            const label = btn.querySelector('.practiced-btn-label');
+            if (label) label.textContent = 'Practiced';
             const card = btn.closest('.tune-card');
             if (card && data.date) card.setAttribute('data-last-practiced', data.date);
             window.mpSyncPlayedTodayHighlight?.();

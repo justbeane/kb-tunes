@@ -1,6 +1,7 @@
 {# Fragment for View Set / Add New Set modal — no {% extends %} #}
 <h2 class="set-modal-title" id="setPanelTitle">{{ panel_title }}</h2>
 <form method="post" class="set-panel-form" id="setEditForm" action="{{ url_for('edit_set', set_id=set_record.id) }}"
+      data-set-id="{{ set_record.id }}"
       data-set-panel-url="{{ panel_url }}"
       data-new-set="{{ '1' if is_new else '' }}"
       data-add-tune-url="{{ url_for('add_tune_to_set', set_id=set_record.id) }}"
@@ -21,6 +22,27 @@
              aria-controls="set_edit_type_menu" />
       <ul class="mp-suggest-menu" id="set_edit_type_menu" role="listbox" hidden></ul>
       <script type="application/json" class="mp-suggest-data">{{ set_type_suggestions|tojson }}</script>
+    </div>
+  </div>
+  <div class="form-group set-panel-form-group">
+    <span class="set-panel-section-label" id="set_edit_key_label">Key</span>
+    <div class="mp-key-ms" id="setKeyMultiselect" aria-labelledby="set_edit_key_label">
+      <div class="practice-groups-pills" role="list" aria-label="Selected keys"></div>
+      <div class="mp-key-ms-combo">
+        <input type="text" id="set_edit_key_pick" class="mp-suggest-input mp-key-ms-input"
+               placeholder="Add key…" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-controls="set_edit_key_ms_menu" />
+        <div class="mp-suggest-menu-shell" hidden>
+          <ul class="mp-suggest-menu mp-key-ms-menu" id="set_edit_key_ms_menu" role="listbox"></ul>
+        </div>
+      </div>
+      <div class="mp-key-ms-hiddens">
+        {% for k in set_record.key|keys_selected %}
+        <input type="hidden" name="key" value="{{ k|e }}" />
+        {% endfor %}
+      </div>
+      <script type="application/json" class="mp-key-ms-all">{{ set_key_suggestions|list|tojson }}</script>
     </div>
   </div>
 </form>
@@ -49,7 +71,7 @@
             <div class="set-tune-picker-slot"></div>
           </td>
           <td class="set-tune-type">{% if tune.tune_type %}<span class="badge badge-type">{{ tune.tune_type }}</span>{% else %}—{% endif %}</td>
-          <td class="set-tune-key">{% if tune.key %}<span class="badge badge-key">{{ tune.key }}</span>{% else %}—{% endif %}</td>
+          <td class="set-tune-key">{% if tune.key|keys_selected %}{% for kk in tune.key|keys_selected %}<span class="badge badge-key">{{ kk }}</span>{% if not loop.last %} {% endif %}{% endfor %}{% else %}—{% endif %}</td>
           <td class="set-tune-col-remove">
             <button type="button" class="btn-set-tune-remove"
                     data-remove-url="{{ url_for('remove_tune_from_set', set_id=set_record.id, tune_id=tune.id) }}"

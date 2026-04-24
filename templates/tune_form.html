@@ -254,6 +254,7 @@
       const form = root.querySelector('#tuneEditForm');
       if (window.mpSuggestInitScope && form) window.mpSuggestInitScope(form);
       if (window.mpPracticeGroupsInitScope && form) window.mpPracticeGroupsInitScope(form);
+      if (window.mpKeyMultiselectInitScope && form) window.mpKeyMultiselectInitScope(form);
       if (window.mpEnhanceCustomSelectsIn && form) window.mpEnhanceCustomSelectsIn(form);
 
       mpInitTuneAddPanelLinks(root);

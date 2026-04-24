@@ -1,4 +1,4 @@
-temp/
+__local__/
 lesson_tunes/
 tunes.db
 settings.json

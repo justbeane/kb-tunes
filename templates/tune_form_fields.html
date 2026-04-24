@@ -1,11 +1,24 @@
 {# Shared tune fields (inside a parent <form>). Expects: tune, modal, tune_type_suggestions, key_suggestions; optional default_tune_num for add. #}
-  <div class="form-row form-row--tune-name-num">
+  <div class="form-row form-row--tune-line1">
     <div class="form-group form-group--tune-name">
       <label for="tune_name_field">Tune name <span class="required">*</span></label>
       <input type="text" id="tune_name_field" name="name"
              value="{{ (tune['name'] or '') if tune else (add_form.name if add_form is defined and add_form else '') }}"
              placeholder="e.g. The Kid on the Mountain"
              required {% if not modal %}autofocus{% endif %} />
+    </div>
+    <div class="form-group form-group--tune-type">
+      <span class="form-group-label" id="tune_tune_type_label">Type</span>
+      <div class="mp-suggest">
+        <input type="text" id="tune_tune_type" name="tune_type" class="mp-suggest-input"
+               value="{{ (tune['tune_type'] or '') if tune else (add_form.tune_type if add_form is defined and add_form else '') }}"
+               placeholder="Select Type"
+               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-labelledby="tune_tune_type_label"
+               aria-controls="tune_tune_type_menu" />
+        <ul class="mp-suggest-menu" id="tune_tune_type_menu" role="listbox" hidden></ul>
+        <script type="application/json" class="mp-suggest-data">{{ tune_type_suggestions|tojson }}</script>
+      </div>
     </div>
     {% if tune %}
     <div class="form-group form-group--tune-num">
@@ -27,58 +40,60 @@
     {% endif %}
   </div>
 
-  <div class="form-row">
-    <div class="form-group">
-      <span class="form-group-label" id="tune_tune_type_label">Type</span>
-      <div class="mp-suggest">
-        <input type="text" id="tune_tune_type" name="tune_type" class="mp-suggest-input"
-               value="{{ (tune['tune_type'] or '') if tune else (add_form.tune_type if add_form is defined and add_form else '') }}"
-               placeholder="Select Type"
-               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
-               aria-labelledby="tune_tune_type_label"
-               aria-controls="tune_tune_type_menu" />
-        <ul class="mp-suggest-menu" id="tune_tune_type_menu" role="listbox" hidden></ul>
-        <script type="application/json" class="mp-suggest-data">{{ tune_type_suggestions|tojson }}</script>
-      </div>
-    </div>
-    <div class="form-group">
+  <div class="form-row form-row--tune-line2">
+    <div class="form-group form-group--tune-key">
       <span class="form-group-label" id="tune_key_label">Key</span>
-      <div class="mp-suggest">
-        <input type="text" id="tune_key" name="key" class="mp-suggest-input"
-               value="{{ (tune['key'] or '') if tune else (add_form.key if add_form is defined and add_form else '') }}"
-               placeholder="Select Key"
-               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
-               aria-labelledby="tune_key_label"
-               aria-controls="tune_key_menu" />
-        <ul class="mp-suggest-menu" id="tune_key_menu" role="listbox" hidden></ul>
-        <script type="application/json" class="mp-suggest-data">{{ key_suggestions|tojson }}</script>
+      <div class="mp-key-ms" id="tuneKeyMultiselect">
+        <div class="practice-groups-pills" role="list" aria-labelledby="tune_key_label"></div>
+        <div class="mp-key-ms-combo">
+          <input type="text" id="tune_key_pick" class="mp-suggest-input mp-key-ms-input"
+                 placeholder="Add key…" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="tune_key_ms_menu" />
+          <div class="mp-suggest-menu-shell" hidden>
+            <ul class="mp-suggest-menu mp-key-ms-menu" id="tune_key_ms_menu" role="listbox"></ul>
+          </div>
+        </div>
+        <div class="mp-key-ms-hiddens">
+          {% if tune %}
+          {% for k in tune.key|keys_selected %}
+          <input type="hidden" name="key" value="{{ k|e }}" />
+          {% endfor %}
+          {% elif add_form is defined and add_form and add_form.key_list %}
+          {% for k in add_form.key_list %}
+          <input type="hidden" name="key" value="{{ k|e }}" />
+          {% endfor %}
+          {% endif %}
+        </div>
+        <script type="application/json" class="mp-key-ms-all">{{ key_suggestions|list|tojson }}</script>
       </div>
     </div>
-  </div>
-
-  <div class="form-group">
-    <span class="form-group-label" id="tune_practice_groups_label">Practice groups</span>
-    <div class="mp-practice-groups">
-      <div class="practice-groups-pills" role="list" aria-labelledby="tune_practice_groups_label"></div>
-      <div class="mp-practice-groups-combo">
-        <input type="text" id="tune_practice_groups_pick" class="mp-suggest-input mp-practice-groups-input"
-               placeholder="Add practice group…" autocomplete="off"
-               role="combobox" aria-autocomplete="list" aria-expanded="false"
-               aria-controls="tune_practice_groups_menu" />
-        <ul class="mp-suggest-menu mp-practice-groups-menu" id="tune_practice_groups_menu" role="listbox" hidden></ul>
+    <div class="form-group form-group--practice-groups">
+      <span class="form-group-label" id="tune_practice_groups_label">Practice groups</span>
+      <div class="mp-practice-groups">
+        <div class="practice-groups-pills" role="list" aria-labelledby="tune_practice_groups_label"></div>
+        <div class="mp-practice-groups-combo">
+          <input type="text" id="tune_practice_groups_pick" class="mp-suggest-input mp-practice-groups-input"
+                 placeholder="Add practice group…" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="tune_practice_groups_menu" />
+          <div class="mp-suggest-menu-shell" hidden>
+            <ul class="mp-suggest-menu mp-practice-groups-menu" id="tune_practice_groups_menu" role="listbox"></ul>
+          </div>
+        </div>
+        <div class="mp-practice-groups-hiddens">
+          {% if tune %}
+          {% for g in tune.practice_group|practice_groups_selected %}
+          <input type="hidden" name="practice_group" value="{{ g|e }}" />
+          {% endfor %}
+          {% elif add_form is defined and add_form and add_form.practice_groups %}
+          {% for g in add_form.practice_groups %}
+          <input type="hidden" name="practice_group" value="{{ g|e }}" />
+          {% endfor %}
+          {% endif %}
+        </div>
+        <script type="application/json" class="mp-practice-groups-all">{{ practice_groups | list | tojson }}</script>
       </div>
-      <div class="mp-practice-groups-hiddens">
-        {% if tune %}
-        {% for g in tune.practice_group|practice_groups_selected %}
-        <input type="hidden" name="practice_group" value="{{ g|e }}" />
-        {% endfor %}
-        {% elif add_form is defined and add_form and add_form.practice_groups %}
-        {% for g in add_form.practice_groups %}
-        <input type="hidden" name="practice_group" value="{{ g|e }}" />
-        {% endfor %}
-        {% endif %}
-      </div>
-      <script type="application/json" class="mp-practice-groups-all">{{ practice_groups | list | tojson }}</script>
     </div>
   </div>
 

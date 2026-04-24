@@ -1,5 +1,5 @@
 /**
- * Practice groups: pills + combobox (suggested labels + custom: type and Enter to add).
+ * Key (tune/set): pills + combobox — same behavior as practice groups (mp_practice_groups.js).
  */
 (function () {
   'use strict';
@@ -7,7 +7,8 @@
   var activeCombo = null;
   var menuRepositionCleanup = null;
 
-  function mpgMenuTuneModalPosition(input, menu) {
+  /** Dropdown inside .tune-modal-dialog: use fixed coords so overflow-y:auto on the dialog does not gain a scrollbar. */
+  function mpkMenuTuneModalPosition(input, menu) {
     if (!input || !menu || !input.closest('.tune-modal-dialog')) return false;
     var rect = input.getBoundingClientRect();
     var w = Math.max(rect.width, 200);
@@ -22,7 +23,7 @@
     return true;
   }
 
-  function mpgMenuClearPosition(menu) {
+  function mpkMenuClearPosition(menu) {
     if (!menu) return;
     menu.style.position = '';
     menu.style.left = '';
@@ -33,7 +34,7 @@
     menu.style.zIndex = '';
   }
 
-  function mpgUnbindMenuReposition() {
+  function mpkUnbindMenuReposition() {
     if (typeof menuRepositionCleanup === 'function') {
       menuRepositionCleanup();
       menuRepositionCleanup = null;
@@ -42,14 +43,14 @@
 
   function hideMenu() {
     if (!activeCombo) return;
-    var menu = activeCombo._mpgMenu;
-    var face = activeCombo._mpgMenuFace || menu;
-    var input = activeCombo._mpgInput;
-    mpgUnbindMenuReposition();
+    var menu = activeCombo._mpkMenu;
+    var face = activeCombo._mpkMenuFace || menu;
+    var input = activeCombo._mpkInput;
+    mpkUnbindMenuReposition();
     if (face) {
       face.hidden = true;
       if (menu) menu.innerHTML = '';
-      mpgMenuClearPosition(face);
+      mpkMenuClearPosition(face);
     }
     if (input) input.setAttribute('aria-expanded', 'false');
     activeCombo = null;
@@ -77,7 +78,7 @@
 
   function getSelectedSet(hiddensEl) {
     var out = new Set();
-    hiddensEl.querySelectorAll('input[name="practice_group"]').forEach(function (inp) {
+    hiddensEl.querySelectorAll('input[name="key"]').forEach(function (inp) {
       var v = (inp.value || '').trim();
       if (v) out.add(v);
     });
@@ -97,21 +98,21 @@
 
   function emitChange(rootEl, hiddensEl) {
     var vals = [];
-    hiddensEl.querySelectorAll('input[name="practice_group"]').forEach(function (inp) {
+    hiddensEl.querySelectorAll('input[name="key"]').forEach(function (inp) {
       var v = (inp.value || '').trim();
       if (v) vals.push(v);
     });
     rootEl.dispatchEvent(
-      new CustomEvent('mp-practice-groups-change', { bubbles: true, detail: { values: vals } })
+      new CustomEvent('mp-key-ms-change', { bubbles: true, detail: { values: vals } })
     );
   }
 
-  function mpgAttach(rootEl, allLabels) {
+  function mpkAttach(rootEl, allLabels) {
     var pillsEl = rootEl.querySelector('.practice-groups-pills');
-    var hiddensEl = rootEl.querySelector('.mp-practice-groups-hiddens');
-    var combo = rootEl.querySelector('.mp-practice-groups-combo');
-    var input = combo && combo.querySelector('.mp-practice-groups-input');
-    var menu = combo && combo.querySelector('.mp-practice-groups-menu');
+    var hiddensEl = rootEl.querySelector('.mp-key-ms-hiddens');
+    var combo = rootEl.querySelector('.mp-key-ms-combo');
+    var input = combo && combo.querySelector('.mp-key-ms-input');
+    var menu = combo && combo.querySelector('.mp-key-ms-menu');
     if (!pillsEl || !hiddensEl || !input || !menu) return;
     var menuFace = menu.closest('.mp-suggest-menu-shell') || menu;
 
@@ -145,16 +146,16 @@
 
     function initFromHiddens() {
       pillsEl.innerHTML = '';
-      hiddensEl.querySelectorAll('input[name="practice_group"]').forEach(addPillForHidden);
+      hiddensEl.querySelectorAll('input[name="key"]').forEach(addPillForHidden);
     }
 
     function pickLabel(text, refocusInput) {
       var t = String(text || '').trim();
       if (!t || getSelectedSet(hiddensEl).has(t)) return;
-      rootEl._mpgSkipOpen = true;
+      rootEl._mpkSkipOpen = true;
       var hid = document.createElement('input');
       hid.type = 'hidden';
-      hid.name = 'practice_group';
+      hid.name = 'key';
       hid.value = t;
       hiddensEl.appendChild(hid);
       addPillForHidden(hid);
@@ -163,7 +164,7 @@
       if (refocusInput !== false) input.focus();
       emitChange(rootEl, hiddensEl);
       setTimeout(function () {
-        rootEl._mpgSkipOpen = false;
+        rootEl._mpkSkipOpen = false;
       }, 0);
     }
 
@@ -174,11 +175,11 @@
       }
     }
 
-    function mpgBindMenuReposition() {
-      mpgUnbindMenuReposition();
+    function mpkBindMenuReposition() {
+      mpkUnbindMenuReposition();
       var handler = function () {
         if (activeCombo !== combo || !input || !menuFace || menuFace.hidden) return;
-        if (input.closest('.tune-modal-dialog')) mpgMenuTuneModalPosition(input, menuFace);
+        if (input.closest('.tune-modal-dialog')) mpkMenuTuneModalPosition(input, menuFace);
       };
       window.addEventListener('scroll', handler, true);
       window.addEventListener('resize', handler);
@@ -211,13 +212,13 @@
       if (opts.length === 0) {
         menuFace.hidden = true;
         input.setAttribute('aria-expanded', 'false');
-        mpgMenuClearPosition(menuFace);
-        mpgUnbindMenuReposition();
+        mpkMenuClearPosition(menuFace);
+        mpkUnbindMenuReposition();
       } else {
-        if (mpgMenuTuneModalPosition(input, menuFace)) mpgBindMenuReposition();
+        if (mpkMenuTuneModalPosition(input, menuFace)) mpkBindMenuReposition();
         else {
-          mpgMenuClearPosition(menuFace);
-          mpgUnbindMenuReposition();
+          mpkMenuClearPosition(menuFace);
+          mpkUnbindMenuReposition();
         }
         menuFace.hidden = false;
         input.setAttribute('aria-expanded', 'true');
@@ -226,26 +227,26 @@
 
     function showMenu() {
       activeCombo = combo;
-      combo._mpgInput = input;
-      combo._mpgMenu = menu;
-      combo._mpgMenuFace = menuFace;
+      combo._mpkInput = input;
+      combo._mpkMenu = menu;
+      combo._mpkMenuFace = menuFace;
       renderMenu();
     }
 
     initFromHiddens();
 
     input.addEventListener('focus', function () {
-      if (rootEl._mpgSkipOpen) return;
+      if (rootEl._mpkSkipOpen) return;
       showMenu();
     });
 
     input.addEventListener('click', function () {
-      if (rootEl._mpgSkipOpen) return;
+      if (rootEl._mpkSkipOpen) return;
       showMenu();
     });
 
     input.addEventListener('input', function () {
-      if (rootEl._mpgSkipOpen) return;
+      if (rootEl._mpkSkipOpen) return;
       if (activeCombo === combo) renderMenu();
       else showMenu();
     });
@@ -308,14 +309,11 @@
     });
   }
 
-  /**
-   * @param {Element} [root]
-   */
-  window.mpPracticeGroupsInitScope = function (root) {
+  window.mpKeyMultiselectInitScope = function (root) {
     root = root || document;
-    root.querySelectorAll('.mp-practice-groups').forEach(function (el) {
-      if (el.dataset.mpPracticeGroupsBound === '1') return;
-      var script = el.querySelector('script.mp-practice-groups-all[type="application/json"]');
+    root.querySelectorAll('.mp-key-ms').forEach(function (el) {
+      if (el.dataset.mpKeyMsBound === '1') return;
+      var script = el.querySelector('script.mp-key-ms-all[type="application/json"]');
       var items = [];
       if (script) {
         try {
@@ -325,13 +323,13 @@
         }
       }
       items = normalizeAll(items);
-      mpgAttach(el, items);
-      el.dataset.mpPracticeGroupsBound = '1';
+      mpkAttach(el, items);
+      el.dataset.mpKeyMsBound = '1';
     });
   };
 
   function runInit() {
-    window.mpPracticeGroupsInitScope(document);
+    window.mpKeyMultiselectInitScope(document);
   }
 
   if (document.readyState === 'loading') {
