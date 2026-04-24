@@ -180,6 +180,7 @@
     }
 
     function sortTable(colIdx) {
+      try { sessionStorage.removeItem('mp-sets-pin-top-ids'); } catch (e) {}
       if (sortCol === colIdx) sortAsc = !sortAsc;
       else { sortCol = colIdx; sortAsc = true; }
 
@@ -279,6 +280,24 @@
       applyFilter();
       filterInput.focus();
     });
+
+    function applyPinnedSetRows() {
+      const KEY = 'mp-sets-pin-top-ids';
+      let ids;
+      try {
+        ids = JSON.parse(sessionStorage.getItem(KEY) || '[]');
+      } catch (e) {
+        ids = [];
+      }
+      if (!Array.isArray(ids) || !ids.length) return;
+      [...ids].reverse().forEach((id) => {
+        const tr = tbody.querySelector('tr.sets-table-row[data-id="' + String(id) + '"]');
+        if (tr) tbody.prepend(tr);
+      });
+    }
+
+    applyPinnedSetRows();
+    applyFilter();
 
     window.mpSetsTableRefreshAfterModal = applyFilter;
   })();

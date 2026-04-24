@@ -2270,6 +2270,16 @@
             alert(j.error || 'Could not start a new set.');
             return;
           }
+          if (j.set_id != null) {
+            try {
+              const KEY = 'mp-sets-pin-top-ids';
+              let ids = JSON.parse(sessionStorage.getItem(KEY) || '[]');
+              if (!Array.isArray(ids)) ids = [];
+              const sid = String(j.set_id);
+              ids = [sid, ...ids.filter((x) => x !== sid)].slice(0, 32);
+              sessionStorage.setItem(KEY, JSON.stringify(ids));
+            } catch (e) {}
+          }
           if (j.panel_url && window.mpOpenSetModal) {
             window.mpOpenSetModal(j.panel_url);
           }
