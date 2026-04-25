@@ -1,0 +1,772 @@
+{% extends "base.html" %}
+{% macro theme_editor_card_sample(sample_label, title_text, card_class, btn_label="Practice") -%}
+<div class="theme-editor-song-card-preview-col">
+  <span class="theme-editor-song-card-preview-label">{{ sample_label }}</span>
+  <div class="theme-editor-song-card-preview-inner">
+    {# No data-last-practiced: base.html mpSyncPlayedTodayHighlight / mpSyncPracticeBtnLabels would strip played-today and reset labels. #}
+    <div class="tune-card{% if card_class %} {{ card_class }}{% endif %}" role="presentation" data-mp-theme-editor-card-preview="1">
+      <h3 class="card-title">
+        <svg class="instrument-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m11.9 12.1 4.514-4.514"/>
+          <path d="M20.1 2.3a1 1 0 0 0-1.4 0l-1.114 1.114A2 2 0 0 0 17 4.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 17.828 7h1.344a2 2 0 0 0 1.414-.586L21.7 5.3a1 1 0 0 0 0-1.4z"/>
+          <path d="m6 16 2 2"/>
+          <path d="M8.23 9.85A3 3 0 0 1 11 8a5 5 0 0 1 5 5 3 3 0 0 1-1.85 2.77l-.92.38A2 2 0 0 0 12 18a4 4 0 0 1-4 4 6 6 0 0 1-6-6 4 4 0 0 1 4-4 2 2 0 0 0 1.85-1.23z"/>
+        </svg>
+        <span class="card-title-text">{{ title_text }}</span>
+      </h3>
+      <div class="card-actions">
+        <span class="btn btn-xs btn-practiced practiced-btn" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5"/>
+          </svg>
+          <span class="practiced-btn-label">{{ btn_label }}</span>
+        </span>
+        <div class="card-meta-right">
+          <span class="practice-count" title="Practice sessions" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/>
+              <line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>
+            </svg>
+            <span class="practice-count-num">21</span>
+          </span>
+          <span class="card-days-since" title="Days since last practiced" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+            </svg>
+            <span class="card-days-since-num">0</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{% block head_extra %}
+<script>
+(function () {
+  var keys = {{ theme_css_var_keys | tojson }};
+  var tId = {{ editing_data_theme | tojson }};
+  var vars = {{ theme_values | tojson }};
+  var st = document.documentElement.style;
+  keys.forEach(function (k) { st.removeProperty('--' + k); });
+  document.documentElement.setAttribute('data-theme', tId);
+  document.documentElement.setAttribute('data-mp-theme-editor-id', tId);
+  document.documentElement.setAttribute('data-mp-mark-played-today', 'on');
+  Object.keys(vars).forEach(function (k) {
+    var v = vars[k];
+    if (v != null && String(v).trim() !== '') st.setProperty('--' + k, String(v).trim());
+  });
+  localStorage.setItem('mp-theme', tId);
+})();
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="theme-editor-page form-page">
+  {% if editing_can_delete %}
+  {# Must not nest forms inside themeEditorForm; a separate form + button[form=] submits delete. #}
+  <form id="mpThemeDeleteForm" method="post" action="{{ url_for('theme_editor_delete') }}" hidden aria-hidden="true"
+        data-mp-delete-message="Delete this theme? This will remove it for everyone using the app. Anyone on this theme will switch to the default. This cannot be undone.">
+    <input type="hidden" name="library_id" value="{{ editing_library_id }}" />
+  </form>
+  {% endif %}
+  <div class="form-header theme-editor-header">
+    <h2>{% if editing_is_new_theme %}Create Theme{% else %}Edit Theme{% endif %}</h2>
+  </div>
+
+  <form method="post" class="theme-editor-form" id="themeEditorForm" action="{{ url_for('theme_editor') }}">
+    <input type="hidden" name="library_id" id="themeEditorLibraryId" value="{{ editing_library_id }}" autocomplete="off" />
+
+    <div class="theme-editor-name-row">
+      <div class="theme-editor-name-field">
+        <label class="theme-editor-label" for="themeEditorName">Theme name</label>
+        <input type="text" name="theme_name" id="themeEditorName" class="theme-editor-text theme-editor-name-input"
+               value="{{ theme_display_name }}" maxlength="120" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="theme-editor-preset-inline" role="group" aria-label="Fill form from preset">
+        <label class="theme-editor-label theme-editor-preset-inline-label" for="themePresetFill">Fill form from preset</label>
+        <div class="theme-editor-preset-inline-controls">
+          <select id="themePresetFill" class="filter-select theme-editor-preset-select" aria-label="Preset to copy into form">
+            {% for pid, plabel in theme_preset_list %}
+              <option value="{{ pid }}">{{ plabel }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-secondary" id="themePresetApplyBtn">Apply to fields</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="theme-editor-folds" role="group" aria-label="Color groups">
+    {% for group_id, group_title in theme_groups %}
+      <div class="settings-section">
+        <button type="button" class="settings-section-toggle" id="teFoldTog_{{ group_id }}"
+                aria-expanded="false" aria-controls="teFold_{{ group_id }}">
+          <span>{{ group_title }}</span>
+          <span class="toggle-arrow" aria-hidden="true">›</span>
+        </button>
+        <div class="settings-section-body" id="teFold_{{ group_id }}">
+          {# Single child so accordion grid-template-rows 0fr collapses all content (incl. layout card preview). #}
+          <div class="theme-editor-fold-content">
+            <div class="theme-editor-grid">
+              {% for key, label in theme_rows_by_group[group_id] %}
+                <div class="theme-editor-row" data-theme-color-row="{{ key }}">
+                  <label class="theme-editor-label" for="var_{{ key|replace('-', '_') }}">{{ label }}</label>
+                  <div class="theme-editor-inputs">
+                    <input type="text"
+                           name="var_{{ key }}"
+                           id="var_{{ key|replace('-', '_') }}"
+                           class="theme-editor-text"
+                           value="{{ theme_values.get(key, '') }}"
+                           autocomplete="off"
+                           spellcheck="false" />
+                    <button type="button" class="theme-editor-swatch" aria-label="Open color picker for {{ label }}"
+                            aria-haspopup="dialog" aria-expanded="false" data-theme-swatch-for="{{ key }}">
+                      <span class="theme-editor-swatch-check" aria-hidden="true"></span>
+                      <span class="theme-editor-swatch-fill" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+            {% if group_id == 'layout' %}
+            <div class="theme-editor-song-card-preview" role="region" aria-label="Sample cards: normal and played today">
+              <div class="theme-editor-song-card-preview-grid">
+                {{ theme_editor_card_sample("Normal", "Normal card", "") }}
+                {{ theme_editor_card_sample("Played today", "Played today", "played-today", "Practiced") }}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+
+    <div class="form-actions theme-editor-actions{% if editing_can_delete %} theme-editor-actions--has-delete{% endif %}" role="group" aria-label="Save or delete theme">
+      {% if editing_can_delete %}
+      <button type="submit" class="btn btn-danger theme-editor-delete-btn" id="mpThemeDeleteTrigger" form="mpThemeDeleteForm">
+        Delete
+      </button>
+      {% endif %}
+      <div class="theme-editor-actions-primary">
+        <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save theme</button>
+      </div>
+    </div>
+  </form>
+
+  <div id="themeEditorColorPopover" class="theme-editor-popover" hidden role="dialog"
+       aria-label="Color picker" aria-modal="true">
+    <div class="theme-editor-popover-stack">
+      <div class="theme-editor-popover-sv-wrap" title="Saturation and brightness">
+        <canvas class="theme-editor-popover-sv" width="240" height="240" aria-hidden="true"></canvas>
+        <div class="theme-editor-popover-sv-cursor" aria-hidden="true"></div>
+      </div>
+      <div class="theme-editor-popover-hue-wrap" title="Hue">
+        <input type="range" class="theme-editor-popover-hue" id="themeEditorPopoverHue" min="0" max="360" value="0" step="1" aria-label="Hue" />
+      </div>
+      <div class="theme-editor-popover-alphasl-wrap" title="Opacity">
+        <div class="theme-editor-popover-alphasl" aria-hidden="true">
+          <div class="theme-editor-popover-alphasl-grad" id="themeEditorPopoverAlphaGrad"></div>
+        </div>
+        <input type="range" class="theme-editor-popover-alphasl-range" id="themeEditorPopoverAlpha" min="0" max="1000" value="1000" step="1" aria-label="Opacity" />
+      </div>
+      <div class="theme-editor-popover-bottomcard">
+        <input type="text" class="theme-editor-popover-hex" id="themeEditorPopoverHex"
+               autocomplete="off" spellcheck="false" aria-label="Hex or CSS color" />
+        <span class="theme-editor-popover-preview" aria-hidden="true"></span>
+      </div>
+      <div class="theme-editor-popover-pop-actions">
+        <button type="button" class="btn btn-secondary theme-editor-popover-cancel" id="themeEditorPopoverCancel">Cancel</button>
+        <button type="button" class="btn btn-primary theme-editor-popover-done" id="themeEditorPopoverDone">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script type="application/json" id="themePresetsJson">{{ theme_fill_for_js | tojson }}</script>
+<script>
+(function () {
+  window.MP_THEME_EDITOR_BASE_PRESET = {{ editing_base_preset_json | tojson }};
+  const mpApiThemeSaveUrl = {{ url_for('api_theme_save') | tojson }};
+
+  var form = document.getElementById('themeEditorForm');
+  if (!form) return;
+
+  (function initThemeDeleteConfirm() {
+    /* Same flow as delete song (song_form / song panel): app modal via mpConfirmDeletion, not window.confirm. */
+    var delForm = document.getElementById('mpThemeDeleteForm');
+    if (!delForm) return;
+    var msg = (delForm.getAttribute('data-mp-delete-message') || '').trim() || 'Confirm deletion?';
+    delForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      window.mpConfirmDeletion(msg).then(function (ok) {
+        if (!ok) return;
+        delForm.submit();
+      });
+    });
+  })();
+
+  (function initThemeEditorFolds() {
+    function bindFold(toggle) {
+      var id = toggle.getAttribute('aria-controls');
+      if (!id) return;
+      var body = document.getElementById(id);
+      if (!body) return;
+      toggle.addEventListener('click', function () {
+        var open = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!open));
+        body.classList.toggle('expanded', !open);
+        var ar = toggle.querySelector('.toggle-arrow');
+        if (ar) ar.classList.toggle('rotated', !open);
+      });
+    }
+    form.querySelectorAll('.theme-editor-folds .settings-section-toggle').forEach(bindFold);
+  })();
+
+  var presetJson = document.getElementById('themePresetsJson');
+  var presets = {};
+  try { if (presetJson) presets = JSON.parse(presetJson.textContent); } catch (e) {}
+
+  function clamp(n, lo, hi) {
+    return Math.min(hi, Math.max(lo, n));
+  }
+
+  function normalizeHex(v) {
+    if (!v || typeof v !== 'string') return null;
+    v = v.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+      var a = v.slice(1).split('');
+      return ('#' + a[0] + a[0] + a[1] + a[1] + a[2] + a[2]).toLowerCase();
+    }
+    return null;
+  }
+
+  function parseRgbFromString(s) {
+    s = String(s || '').trim();
+    if (!s) return null;
+    var h8 = s.match(/^#([0-9a-fA-F]{8})$/);
+    if (h8) {
+      var hh = h8[1];
+      return {
+        r: parseInt(hh.slice(0, 2), 16),
+        g: parseInt(hh.slice(2, 4), 16),
+        b: parseInt(hh.slice(4, 6), 16),
+        a: parseInt(hh.slice(6, 8), 16) / 255,
+      };
+    }
+    var hx = normalizeHex(s);
+    if (hx) {
+      var h6 = hx.slice(1);
+      return {
+        r: parseInt(h6.slice(0, 2), 16),
+        g: parseInt(h6.slice(2, 4), 16),
+        b: parseInt(h6.slice(4, 6), 16),
+        a: 1,
+      };
+    }
+    var m = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+)\s*)?\s*\)$/i);
+    if (m) {
+      return {
+        r: clamp(+m[1], 0, 255),
+        g: clamp(+m[2], 0, 255),
+        b: clamp(+m[3], 0, 255),
+        a: m[4] !== undefined && m[4] !== '' ? clamp(+m[4], 0, 1) : 1,
+      };
+    }
+    return null;
+  }
+
+  function parseColorFlexible(s) {
+    var p = parseRgbFromString(s);
+    if (p) return p;
+    if (!s || typeof s !== 'string') return null;
+    var probe = s.trim();
+    if (!probe) return null;
+    try {
+      var d = document.createElement('span');
+      d.style.color = '';
+      d.style.color = probe;
+      if (!d.style.color) return null;
+      document.documentElement.appendChild(d);
+      var c = getComputedStyle(d).color;
+      document.documentElement.removeChild(d);
+      return parseRgbFromString(c);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(function (x) {
+      return clamp(Math.round(x), 0, 255).toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function formatColorForField(r, g, b, a) {
+    a = clamp(a, 0, 1);
+    if (a >= 1 - 1e-6) return rgbToHex(r, g, b);
+    var rr = clamp(Math.round(r), 0, 255);
+    var gg = clamp(Math.round(g), 0, 255);
+    var bb = clamp(Math.round(b), 0, 255);
+    var aa = Math.round(a * 1000) / 1000;
+    return 'rgba(' + rr + ',' + gg + ',' + bb + ',' + aa + ')';
+  }
+
+  function hsvToRgb(h, s, v) {
+    h = ((h % 360) + 360) % 360;
+    s = clamp(s, 0, 1);
+    v = clamp(v, 0, 1);
+    var c = v * s;
+    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    var m = v - c;
+    var rp = 0;
+    var gp = 0;
+    var bp = 0;
+    if (h < 60) {
+      rp = c;
+      gp = x;
+    } else if (h < 120) {
+      rp = x;
+      gp = c;
+    } else if (h < 180) {
+      gp = c;
+      bp = x;
+    } else if (h < 240) {
+      gp = x;
+      bp = c;
+    } else if (h < 300) {
+      rp = x;
+      bp = c;
+    } else {
+      rp = c;
+      bp = x;
+    }
+    return {
+      r: Math.round((rp + m) * 255),
+      g: Math.round((gp + m) * 255),
+      b: Math.round((bp + m) * 255),
+    };
+  }
+
+  function rgbToHsv(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    var max = Math.max(r, g, b);
+    var min = Math.min(r, g, b);
+    var d = max - min;
+    var h = 0;
+    if (d !== 0) {
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
+    }
+    h *= 360;
+    var s = max === 0 ? 0 : d / max;
+    var v = max;
+    return { h: h, s: s, v: v };
+  }
+
+  function updateSwatchForRow(row) {
+    var fill = row.querySelector('.theme-editor-swatch-fill');
+    if (!fill) return;
+    var text = row.querySelector('.theme-editor-text');
+    var p = parseColorFlexible(String(text && text.value ? text.value : '').trim());
+    if (!p) {
+      fill.style.background = 'rgba(0,0,0,0.15)';
+      return;
+    }
+    fill.style.background = 'rgba(' + p.r + ',' + p.g + ',' + p.b + ',' + p.a + ')';
+  }
+
+  function mpThemeEditorSyncRowFromText(row) {
+    updateSwatchForRow(row);
+  }
+
+  var pickerRow = null;
+  var colorPopoverValueOnOpen = '';
+  var pickerH = 200;
+  var pickerS = 0.65;
+  var pickerV = 0.45;
+  var pickerA = 1;
+
+  var pop = document.getElementById('themeEditorColorPopover');
+  var svCanvas = pop ? pop.querySelector('.theme-editor-popover-sv') : null;
+  var svCursor = pop ? pop.querySelector('.theme-editor-popover-sv-cursor') : null;
+  var hexInput = document.getElementById('themeEditorPopoverHex');
+  var hueInput = document.getElementById('themeEditorPopoverHue');
+  var alphaInput = document.getElementById('themeEditorPopoverAlpha');
+  var alphaGrad = document.getElementById('themeEditorPopoverAlphaGrad');
+  var hueWrap = pop ? pop.querySelector('.theme-editor-popover-hue-wrap') : null;
+  var popPreview = pop ? pop.querySelector('.theme-editor-popover-preview') : null;
+  var lastSvCanvasHue = NaN;
+
+  function redrawSvCanvas() {
+    if (!svCanvas) return;
+    if (Number.isFinite(lastSvCanvasHue) && Math.abs(pickerH - lastSvCanvasHue) < 1e-4) {
+      return;
+    }
+    lastSvCanvasHue = pickerH;
+    var ctx = svCanvas.getContext('2d');
+    var w = svCanvas.width;
+    var h = svCanvas.height;
+    var img = ctx.createImageData(w, h);
+    var d = img.data;
+    var hh = pickerH;
+    var x;
+    var y;
+    var ss;
+    var vv;
+    var rgb;
+    var i;
+    for (y = 0; y < h; y++) {
+      vv = 1 - y / Math.max(1, h - 1);
+      for (x = 0; x < w; x++) {
+        ss = x / Math.max(1, w - 1);
+        rgb = hsvToRgb(hh, ss, vv);
+        i = (y * w + x) * 4;
+        d[i] = rgb.r;
+        d[i + 1] = rgb.g;
+        d[i + 2] = rgb.b;
+        d[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function positionSvCursor() {
+    if (!svCursor || !svCanvas) return;
+    svCursor.style.left = clamp(pickerS, 0, 1) * 100 + '%';
+    svCursor.style.top = (1 - clamp(pickerV, 0, 1)) * 100 + '%';
+  }
+
+  function updatePopoverPreview(rgb) {
+    if (!popPreview) return;
+    popPreview.style.background = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + pickerA + ')';
+  }
+
+  function updateAlphaGrad(rgb) {
+    if (!alphaGrad) return;
+    /* Left = transparent, right = opaque (matches range min→max) */
+    alphaGrad.style.background =
+      'linear-gradient(to right, rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0), rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',1))';
+  }
+
+  function updateHueThumbPreview() {
+    if (!hueWrap) return;
+    var th = hsvToRgb(pickerH, 1, 1);
+    hueWrap.style.setProperty('--mp-hue-thumb', 'rgb(' + th.r + ',' + th.g + ',' + th.b + ')');
+  }
+
+  function refreshPickerUI() {
+    if (!pop) return;
+    var rgb = hsvToRgb(pickerH, pickerS, pickerV);
+    redrawSvCanvas();
+    updateAlphaGrad(rgb);
+    updateHueThumbPreview();
+    if (hueInput) hueInput.value = String(Math.round(pickerH));
+    if (alphaInput) alphaInput.value = String(Math.round(pickerA * 1000));
+    if (hexInput) {
+      hexInput.value =
+        pickerA < 1 - 1e-6
+          ? formatColorForField(rgb.r, rgb.g, rgb.b, pickerA)
+          : rgbToHex(rgb.r, rgb.g, rgb.b);
+    }
+    positionSvCursor();
+    updatePopoverPreview(rgb);
+  }
+
+  function applyPickerToActiveRow() {
+    if (!pickerRow) return;
+    var text = pickerRow.querySelector('.theme-editor-text');
+    if (!text) return;
+    var rgb = hsvToRgb(pickerH, pickerS, pickerV);
+    text.value = formatColorForField(rgb.r, rgb.g, rgb.b, pickerA);
+    updateSwatchForRow(pickerRow);
+    mpThemeEditorApplyLive();
+    mpThemeEditorScheduleSave();
+  }
+
+  function syncPickerStateFromRow(row) {
+    var text = row.querySelector('.theme-editor-text');
+    var p = parseColorFlexible(String(text && text.value ? text.value : '').trim());
+    if (!p) {
+      pickerH = 200;
+      pickerS = 0.5;
+      pickerV = 0.5;
+      pickerA = 1;
+    } else {
+      pickerA = clamp(p.a, 0, 1);
+      var hsv = rgbToHsv(p.r, p.g, p.b);
+      pickerH = hsv.h;
+      pickerS = hsv.s;
+      pickerV = hsv.v;
+    }
+  }
+
+  function closeColorPopover(revert) {
+    if (!pop) return;
+    if (revert && pickerRow) {
+      var reText = pickerRow.querySelector('.theme-editor-text');
+      if (reText) reText.value = colorPopoverValueOnOpen;
+      updateSwatchForRow(pickerRow);
+      mpThemeEditorApplyLive();
+      mpThemeEditorScheduleSave();
+    }
+    pop.hidden = true;
+    document.querySelectorAll('.theme-editor-swatch[aria-expanded="true"]').forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+    pickerRow = null;
+    colorPopoverValueOnOpen = '';
+    lastSvCanvasHue = NaN;
+  }
+
+  function openColorPopover(row, anchor) {
+    if (!pop || !anchor) return;
+    lastSvCanvasHue = NaN;
+    pickerRow = row;
+    var openText = row.querySelector('.theme-editor-text');
+    colorPopoverValueOnOpen = openText ? String(openText.value != null ? openText.value : '') : '';
+    syncPickerStateFromRow(row);
+    refreshPickerUI();
+    pop.hidden = false;
+    document.querySelectorAll('.theme-editor-swatch').forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+    anchor.setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(function () {
+      var pr = pop.getBoundingClientRect();
+      var ar = anchor.getBoundingClientRect();
+      var left = ar.left;
+      var top = ar.bottom + 8;
+      if (left + pr.width > window.innerWidth - 8) left = window.innerWidth - pr.width - 8;
+      if (left < 8) left = 8;
+      if (top + pr.height > window.innerHeight - 8) top = ar.top - pr.height - 8;
+      if (top < 8) top = 8;
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+    });
+  }
+
+  function bindPopoverInteractions() {
+    if (!pop || !svCanvas) return;
+
+    var svDragging = false;
+
+    function pickSvFromClient(clientX, clientY) {
+      var rect = svCanvas.getBoundingClientRect();
+      var x = clamp(clientX - rect.left, 0, rect.width);
+      var y = clamp(clientY - rect.top, 0, rect.height);
+      pickerS = x / Math.max(1, rect.width);
+      pickerV = 1 - y / Math.max(1, rect.height);
+      refreshPickerUI();
+      applyPickerToActiveRow();
+    }
+
+    svCanvas.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      svDragging = true;
+      pickSvFromClient(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', function (e) {
+      if (svDragging) pickSvFromClient(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', function () {
+      svDragging = false;
+    });
+
+    if (hueInput) {
+      hueInput.addEventListener('input', function () {
+        pickerH = +hueInput.value || 0;
+        refreshPickerUI();
+        applyPickerToActiveRow();
+      });
+    }
+
+    if (alphaInput) {
+      alphaInput.addEventListener('input', function () {
+        pickerA = (+alphaInput.value || 0) / 1000;
+        refreshPickerUI();
+        applyPickerToActiveRow();
+      });
+    }
+
+    if (hexInput) {
+      hexInput.addEventListener('change', function () {
+        var p = parseColorFlexible(hexInput.value);
+        if (!p) return;
+        pickerA = clamp(p.a, 0, 1);
+        var hsv = rgbToHsv(p.r, p.g, p.b);
+        pickerH = hsv.h;
+        pickerS = hsv.s;
+        pickerV = hsv.v;
+        refreshPickerUI();
+        applyPickerToActiveRow();
+      });
+    }
+
+    var cancelBtn = document.getElementById('themeEditorPopoverCancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        closeColorPopover(true);
+      });
+    }
+
+    var doneBtn = document.getElementById('themeEditorPopoverDone');
+    if (doneBtn) {
+      doneBtn.addEventListener('click', function () {
+        closeColorPopover();
+      });
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && pop && !pop.hidden) {
+        e.preventDefault();
+        closeColorPopover(true);
+      }
+    });
+    document.addEventListener(
+      'mousedown',
+      function (e) {
+        if (pop.hidden) return;
+        if (pop.contains(e.target)) return;
+        if (e.target.closest && e.target.closest('.theme-editor-swatch')) return;
+        closeColorPopover();
+      },
+      true
+    );
+  }
+
+  bindPopoverInteractions();
+
+  function mpThemeEditorApplyLive() {
+    var preset = window.MP_THEME_EDITOR_BASE_PRESET || {};
+    var keys = window.MP_THEME_VAR_KEYS || [];
+    var st = document.documentElement.style;
+    var libEl = document.getElementById('themeEditorLibraryId');
+    var themeId = libEl && String(libEl.value || '').trim() ? String(libEl.value).trim() : {{ theme_fallback_id|tojson }};
+    document.documentElement.setAttribute('data-theme', themeId);
+    document.documentElement.setAttribute('data-mp-theme-editor-id', themeId);
+    keys.forEach(function (k) { st.removeProperty('--' + k); });
+    keys.forEach(function (key) {
+      var el = form.querySelector('input[name="var_' + key + '"]');
+      var v = el ? String(el.value || '').trim() : '';
+      if (!v && key === 'accent-light') {
+        var tEl = form.querySelector('input[name="var_text"]');
+        v = tEl ? String(tEl.value || '').trim() : '';
+      }
+      if (!v && (key === 'card-text' || key === 'card-text-played')) {
+        var tEl2 = form.querySelector('input[name="var_text"]');
+        v = tEl2 ? String(tEl2.value || '').trim() : '';
+      }
+      if (!v && key === 'accent-focus') {
+        var aEl = form.querySelector('input[name="var_accent"]');
+        v = aEl ? String(aEl.value || '').trim() : '';
+      }
+      var pv = String(preset[key] || '').trim();
+      var use = v || pv;
+      if (use) st.setProperty('--' + key, use);
+    });
+    localStorage.setItem('mp-theme', themeId);
+  }
+
+  function mpThemeEditorCollectSavePayload() {
+    var nameEl = document.getElementById('themeEditorName');
+    var libEl = document.getElementById('themeEditorLibraryId');
+    var themeName = nameEl && String(nameEl.value || '').trim() ? String(nameEl.value).trim().slice(0, 120) : 'Untitled';
+    var libraryId = libEl ? String(libEl.value || '').trim() : '';
+    var variables = {};
+    (window.MP_THEME_VAR_KEYS || []).forEach(function (key) {
+      var el = form.querySelector('input[name="var_' + key + '"]');
+      if (key === 'accent-light' && !el) {
+        el = form.querySelector('input[name="var_text"]');
+      }
+      if (!el) return;
+      var v = String(el.value || '').trim();
+      if (v) variables[key] = v;
+    });
+    return { id: libraryId, name: themeName, variables: variables };
+  }
+
+  var saveTimer;
+  function mpThemeEditorScheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      var payload = mpThemeEditorCollectSavePayload();
+      fetch(mpApiThemeSaveUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: payload.id || null, name: payload.name, variables: payload.variables }),
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok || !j.id) return;
+        var hid = document.getElementById('themeEditorLibraryId');
+        if (hid && !String(hid.value || '').trim()) hid.value = j.id;
+      }).catch(function () {});
+    }, 450);
+  }
+
+  var nameInput = document.getElementById('themeEditorName');
+  if (nameInput) {
+    nameInput.addEventListener('input', function () { mpThemeEditorScheduleSave(); });
+    nameInput.addEventListener('change', function () { mpThemeEditorScheduleSave(); });
+  }
+
+  document.querySelectorAll('.theme-editor-row[data-theme-color-row]').forEach(function (row) {
+    var text = row.querySelector('.theme-editor-text');
+    var swatch = row.querySelector('.theme-editor-swatch');
+    if (!text) return;
+    if (swatch) {
+      mpThemeEditorSyncRowFromText(row);
+      swatch.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (pop && !pop.hidden && pickerRow === row) {
+          closeColorPopover();
+          return;
+        }
+        openColorPopover(row, swatch);
+      });
+    }
+    text.addEventListener('input', function () {
+      if (swatch) mpThemeEditorSyncRowFromText(row);
+      mpThemeEditorApplyLive();
+      mpThemeEditorScheduleSave();
+    });
+    text.addEventListener('change', function () {
+      if (swatch) mpThemeEditorSyncRowFromText(row);
+      mpThemeEditorApplyLive();
+      mpThemeEditorScheduleSave();
+    });
+  });
+
+  var sel = document.getElementById('themePresetFill');
+  var btn = document.getElementById('themePresetApplyBtn');
+  if (sel && btn) {
+    btn.addEventListener('click', function () {
+      var id = sel.value;
+      var p = presets[id];
+      if (!p) return;
+      Object.keys(p).forEach(function (key) {
+        var field = form.querySelector('input[name="var_' + key + '"]');
+        if (field) {
+          field.value = p[key];
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      form.querySelectorAll('.theme-editor-row[data-theme-color-row]').forEach(mpThemeEditorSyncRowFromText);
+      window.MP_THEME_EDITOR_BASE_PRESET = JSON.parse(JSON.stringify(p));
+      mpThemeEditorApplyLive();
+      mpThemeEditorScheduleSave();
+    });
+  }
+
+  mpThemeEditorApplyLive();
+})();
+</script>
+{% endblock %}

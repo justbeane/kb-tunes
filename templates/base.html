@@ -1,14 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="pearl">
+{% macro theme_edit_icon() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+{%- endmacro %}
+<html lang="en" data-theme="{{ theme_runtime.data_theme }}" data-script-root="{{ request.script_root }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b4f8c" />
+  <meta name="theme-color" content="{{ (theme_runtime.theme_variables or {}).get('bg', '#f6f7f9') }}" />
   <meta name="application-name" content="Fiddle Practice" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Fiddle Practice" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
+  <link rel="manifest" href="{{ url_for('web_manifest') }}?v={{ mp_manifest_bust }}" />
   <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='pwa-icon-192.png') }}" />
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}" sizes="180x180" />
   <script>
@@ -24,11 +27,22 @@
   <title>{% block title %}Fiddle Practice{% endblock %}</title>
   <script>
     (function () {
-      // Server settings.json is the source of truth (syncs across devices via Dropbox).
-      // We apply them immediately here to avoid any flash of wrong theme/state.
+      var tr = {{ theme_runtime | tojson }};
+      window.MP_THEME_RUNTIME = tr;
       var s = {{ mp_settings | tojson }};
-      var t = s.theme || 'pearl';
+      var t = tr.data_theme || {{ theme_fallback_id | tojson }};
       document.documentElement.setAttribute('data-theme', t);
+      if (tr.theme_variables && typeof tr.theme_variables === 'object') {
+        var rootStyle = document.documentElement.style;
+        Object.keys(tr.theme_variables).forEach(function (key) {
+          var val = tr.theme_variables[key];
+          if (val == null) return;
+          val = String(val).trim();
+          if (!val) return;
+          var prop = key.indexOf('--') === 0 ? key : '--' + key;
+          rootStyle.setProperty(prop, val);
+        });
+      }
       if (!s.card_dividers) {
         document.documentElement.setAttribute('data-card-dividers', 'off');
       }
@@ -42,20 +56,21 @@
       if (s.sidebar_collapsed) {
         document.documentElement.setAttribute('data-mp-sidebar-collapsed', '1');
       }
-      // Keep localStorage in sync so the rest of the JS can still read from it.
       localStorage.setItem('mp-theme', t);
       localStorage.setItem('mp-card-dividers', s.card_dividers ? 'on' : 'off');
       s.mark_played_today ? localStorage.setItem('mp-mark-played-today', 'on') : localStorage.removeItem('mp-mark-played-today');
       s.bold_card_titles  ? localStorage.setItem('mp-bold-card-titles',  'on') : localStorage.removeItem('mp-bold-card-titles');
       localStorage.setItem('mp-type-bubbles', s.type_bubbles !== false ? 'on' : 'off');
       s.sidebar_collapsed ? localStorage.setItem('mp-sidebar-collapsed', '1') : localStorage.removeItem('mp-sidebar-collapsed');
+      window.MP_INIT_SETTINGS = s;
     })();
   </script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  <script src="{{ url_for('static', filename='mp_suggest.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='mp_practice_groups.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='mp_key_multiselect.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='mp_custom_select.js') }}" defer></script>
+  {% block head_extra %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ mp_static_assets_v }}" />
+  <script src="{{ url_for('static', filename='mp_suggest.js') }}?v={{ mp_static_assets_v }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_practice_groups.js') }}?v={{ mp_static_assets_v }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_key_multiselect.js') }}?v={{ mp_static_assets_v }}" defer></script>
+  <script src="{{ url_for('static', filename='mp_custom_select.js') }}?v={{ mp_static_assets_v }}" defer></script>
   <script>
     (function () {
       var a = ' xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
@@ -91,7 +106,7 @@
     <aside class="sidebar">
       <nav class="sidebar-nav">
         <a id="sidebarNavIndex" href="{{ url_for('index') }}"
-           class="sidebar-item {% if request.endpoint == 'index' %}active{% endif %}">
+           class="sidebar-item {% if request.endpoint in ('index', 'theme_editor') %}active{% endif %}">
           Tunes
         </a>
         <a id="sidebarNavPlayCounts" href="{{ url_for('times_played') }}"
@@ -182,7 +197,7 @@
     </div>
     <nav class="mobile-nav-links" aria-label="Main navigation">
       <a id="mobileNavIndex" href="{{ url_for('index') }}"
-         class="sidebar-item {% if request.endpoint == 'index' %}active{% endif %}">
+         class="sidebar-item {% if request.endpoint in ('index', 'theme_editor') %}active{% endif %}">
         Tunes
       </a>
       <a id="mobileNavPlayCounts" href="{{ url_for('times_played') }}"
@@ -255,62 +270,16 @@
       </button>
       <div class="settings-section-body" id="themesBody">
         <div class="theme-options">
-          <button class="theme-option" data-theme="pearl">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f6f7f9 50%,#0b4f8c 50%)"></span>
-            Pearl
-          </button>
-          <button class="theme-option" data-theme="arctic">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f4f9fc 50%,#0369a1 50%)"></span>
-            Arctic
-          </button>
-          <button class="theme-option" data-theme="blush">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#fdf5f7 50%,#9d174d 50%)"></span>
-            Blush
-          </button>
-          <button class="theme-option" data-theme="clay">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f2ebe4 50%,#a63c0c 50%)"></span>
-            Clay
-          </button>
-          <button class="theme-option" data-theme="iris">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f2f4fb 50%,#4c5ecd 50%)"></span>
-            Iris
-          </button>
-          <button class="theme-option" data-theme="ivory">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#faf9f6 50%,#1e5c3a 50%)"></span>
-            Ivory
-          </button>
-          <button class="theme-option" data-theme="linen">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f7f3eb 50%,#8b4513 50%)"></span>
-            Linen
-          </button>
-          <button class="theme-option" data-theme="mist">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#eef2f6 50%,#1e40af 50%)"></span>
-            Mist
-          </button>
-          <button class="theme-option" data-theme="copper">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f7f1eb 50%,#9c5b2e 50%)"></span>
-            Copper
-          </button>
-          <button class="theme-option" data-theme="wisteria">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#f3f1f8 50%,#5b21b6 50%)"></span>
-            Wisteria
-          </button>
-          <button class="theme-option" data-theme="fjord">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#e9f0f2 50%,#107896 50%)"></span>
-            Fjord
-          </button>
-          <button class="theme-option" data-theme="citrine">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#faf8f0 50%,#7c6f3a 50%)"></span>
-            Citrine
-          </button>
-          <button class="theme-option" data-theme="peony">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#fdf6f4 50%,#b54a38 50%)"></span>
-            Peony
-          </button>
-          <button class="theme-option" data-theme="cute">
-            <span class="theme-swatch" style="background:linear-gradient(135deg,#fff5fb 50%,#db2777 50%)"></span>
-            Cute
-          </button>
+          {% for t in themes_list_client %}
+          <div class="theme-option-row">
+            <button type="button" class="theme-option" data-theme="{{ t.id }}" data-theme-id="{{ t.id }}">
+              <span class="theme-swatch" style="background:linear-gradient(135deg,{{ t.swatch_sidebar }} 0%,{{ t.swatch_sidebar }} 40%,{{ t.swatch_surface }} 40%,{{ t.swatch_surface }} 60%,{{ t.swatch_practiced }} 60%,{{ t.swatch_practiced }} 100%)"></span>
+              {{ t.name }}
+            </button>
+            <a class="theme-edit-btn" href="{{ url_for('theme_editor', library_id=t.id) }}" aria-label="Edit {{ t.name }}" title="Edit theme">{{ theme_edit_icon() }}</a>
+          </div>
+          {% endfor %}
+          <a href="{{ url_for('theme_editor', new=1, base=theme_fallback_id) }}" class="theme-create-link">Create Theme</a>
         </div>
       </div>
     </div>
@@ -409,31 +378,66 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" crossorigin="anonymous"></script>
   <script>
-    // ── Persist a setting to settings.json on the server (fire-and-forget) ──
+    const mpApiSettingsUrl = {{ url_for('update_settings') | tojson }};
+    const mpApiThemeActivateUrl = {{ url_for('api_theme_activate') | tojson }};
+    window.MP_THEME_VAR_KEYS = {{ theme_css_var_keys | tojson }};
+    window.MP_THEMES_LIST = {{ themes_list_client | tojson }};
+
     function mpSaveSetting(updates) {
-      fetch('/api/settings', {
+      fetch(mpApiSettingsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       }).catch(() => {});
     }
+    window.mpSaveSetting = mpSaveSetting;
 
-    // ── Theme persistence ──
-    let savedTheme = localStorage.getItem('mp-theme') || 'pearl';
+    const trRun = window.MP_THEME_RUNTIME || {};
+    const savedActiveThemeId = (trRun.active_id || trRun.data_theme || {{ theme_fallback_id | tojson }}).toString();
 
-    function setTheme(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('mp-theme', theme);
-      mpSaveSetting({ theme });
-      document.querySelectorAll('.theme-option').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.theme === theme);
+    function mpClearInlineThemeVariables() {
+      const keys = window.MP_THEME_VAR_KEYS;
+      if (!keys || !keys.length) return;
+      const st = document.documentElement.style;
+      keys.forEach(k => st.removeProperty('--' + k));
+    }
+
+    function mpApplyOverrides(overrides) {
+      if (!overrides || typeof overrides !== 'object') return;
+      const st = document.documentElement.style;
+      Object.keys(overrides).forEach((key) => {
+        const val = overrides[key];
+        if (val == null) return;
+        const s = String(val).trim();
+        if (!s) return;
+        st.setProperty('--' + key, s);
       });
     }
 
-    // Mark saved theme active once DOM is ready
-    document.querySelectorAll('.theme-option').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.theme === savedTheme);
-      btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+    function setActiveThemeById(id) {
+      const list = window.MP_THEMES_LIST || [];
+      const entry = list.find(t => t.id === id);
+      if (!entry) return;
+      mpClearInlineThemeVariables();
+      document.documentElement.setAttribute('data-theme', id);
+      mpApplyOverrides(entry.variables);
+      localStorage.setItem('mp-theme', id);
+      fetch(mpApiThemeActivateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
+      document.querySelectorAll('.theme-option').forEach(btn => {
+        const tid = (btn.dataset.themeId || btn.dataset.theme || '').trim();
+        btn.classList.toggle('active', tid === id);
+      });
+    }
+
+    document.querySelectorAll('.theme-option').forEach((btn) => {
+      const id = (btn.dataset.themeId || btn.dataset.theme || '').trim();
+      if (!id) return;
+      btn.classList.toggle('active', id === savedActiveThemeId);
+      btn.addEventListener('click', () => setActiveThemeById(id));
     });
 
     // ── Card dividers (Other) ──
@@ -2312,5 +2316,6 @@
       window.mpOpenTuneModal(card.dataset.panelUrl);
     });
   </script>
+  {% block page_scripts %}{% endblock %}
 </body>
 </html>

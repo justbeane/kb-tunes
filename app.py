@@ -1,9 +1,11 @@
 import calendar
+import hashlib
 import json
 import math
 import mimetypes
 import random
 import re
+import secrets
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
@@ -11,6 +13,7 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 from flask import (
     Flask,
+    Response,
     abort,
     flash,
     jsonify,
@@ -43,6 +46,27 @@ if _LEGACY_DB.exists() and not Path(DB_PATH).exists():
     _LEGACY_DB.rename(Path(DB_PATH))
 SETTINGS_PATH = str(_APP_ROOT / "settings.json")
 BACKUPS_DIR = _APP_ROOT / "__local__" / "backups"
+
+_MP_STATIC_CACHE_NAMES = (
+    "style.css",
+    "mp_suggest.js",
+    "mp_practice_groups.js",
+    "mp_key_multiselect.js",
+    "mp_custom_select.js",
+    "mp_refresh_page.js",
+    "mp_lesson_tunes_table.js",
+)
+
+
+def _mp_static_asset_version() -> str:
+    m = 0
+    for n in _MP_STATIC_CACHE_NAMES:
+        try:
+            p = _APP_ROOT / "static" / n
+            m = max(m, int(p.stat().st_mtime))
+        except OSError:
+            pass
+    return str(m) if m else "0"
 
 # IANA zone for all timestamps persisted in SQLite (wall time, DST-aware).
 DB_TIMEZONE = ZoneInfo("America/Chicago")
@@ -116,7 +140,6 @@ def normalize_practice_datetime(value: str) -> str | None:
 
 
 SETTINGS_DEFAULTS: dict = {
-    "theme": "pearl",
     "card_dividers": True,
     "mark_played_today": False,
     "bold_card_titles": False,
@@ -125,12 +148,6 @@ SETTINGS_DEFAULTS: dict = {
     "phrase_subset_override_enabled": False,
     "phrase_variety": "medium",
     "phrase_frequency_sec": 1,
-}
-
-VALID_THEMES = {
-    "pearl", "arctic", "blush", "clay", "iris", "ivory", "linen",
-    "mist", "copper", "wisteria", "fjord", "citrine", "peony",
-    "cute",
 }
 
 
@@ -145,8 +162,6 @@ def load_settings() -> dict:
         v = data.get(key)
         if isinstance(v, type(default)):
             settings[key] = v
-    if settings["theme"] not in VALID_THEMES:
-        settings["theme"] = "pearl"
     if settings.get("phrase_variety") not in VALID_PHRASE_VARIETIES:
         settings["phrase_variety"] = SETTINGS_DEFAULTS["phrase_variety"]
     if settings.get("phrase_frequency_sec") not in VALID_PHRASE_FREQUENCY_SEC:
@@ -157,6 +172,33 @@ def load_settings() -> dict:
 def save_settings(settings: dict) -> None:
     with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2)
+
+
+from theming import (  # noqa: E402
+    THEME_EDITOR_GROUPS,
+    THEME_EDITOR_KEYS,
+    THEME_EDITOR_ROWS,
+    THEME_FALLBACK_ID,
+    THEME_PRESETS,
+    _normalize_theme_variables_dict,
+    _variables_from_post_form,
+    complete_theme_variables,
+    delete_theme_in_file,
+    load_themes_data,
+    save_themes_data,
+    theme_editor_page_state,
+    theme_runtime_for_client,
+    themes_list_for_client,
+    upsert_theme_in_file,
+)
+
+
+def _mp_manifest_bust() -> str:
+    s = load_settings()
+    tr = theme_runtime_for_client()
+    raw = f"{s.get('phrase_variety', '')!s}\0{tr.get('active_id', '')!s}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
 
 # Default / suggested labels (combobox + sort order). Custom labels are also allowed.
 MAX_PRACTICE_GROUP_LABEL_LEN = 120
@@ -950,7 +992,174 @@ def inject_tune_types():
         "practice_groups": PRACTICE_GROUPS,
         "mp_sidebar_practice_groups": sidebar_pg,
         "header_random_phrase": header_random_phrase,
+        "mp_static_assets_v": _mp_static_asset_version(),
+        "mp_manifest_bust": _mp_manifest_bust(),
+        "theme_css_var_keys": sorted(THEME_EDITOR_KEYS),
+        "theme_runtime": theme_runtime_for_client(),
+        "themes_list_client": themes_list_for_client(),
+        "theme_fallback_id": THEME_FALLBACK_ID,
     }
+
+
+@app.route("/site.webmanifest")
+def web_manifest():
+    tr = theme_runtime_for_client()
+    tv = tr.get("theme_variables") or {}
+    bg = str(tv.get("bg") or "#f6f7f9").strip() or "#f6f7f9"
+    root = (request.script_root or "").rstrip("/")
+    base = f"{root}/" if root else "/"
+    manifest = {
+        "name": "Fiddle Practice",
+        "short_name": "Fiddle",
+        "description": "Tune and practice tracking for fiddle players.",
+        "id": base,
+        "start_url": base,
+        "scope": base,
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": bg,
+        "theme_color": bg,
+        "icons": [
+            {
+                "src": url_for("static", filename="pwa-icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": url_for("static", filename="pwa-icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": url_for("static", filename="pwa-icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+    return Response(
+        json.dumps(manifest, separators=(",", ":")),
+        mimetype="application/manifest+json",
+    )
+
+
+@app.route("/api/theme/activate", methods=["POST"])
+def api_theme_activate():
+    data = request.get_json(silent=True) or {}
+    tid = str(data.get("id") or "").strip()
+    if not tid:
+        return jsonify({"ok": False, "error": "Missing id"}), 400
+    tdata = load_themes_data()
+    if not any(t.get("id") == tid for t in tdata.get("themes", [])):
+        return jsonify({"ok": False, "error": "Unknown theme id"}), 400
+    tdata["active_id"] = tid
+    save_themes_data(tdata)
+    return jsonify({"ok": True, "id": tid})
+
+
+@app.route("/api/theme/save", methods=["POST"])
+def api_theme_save():
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "Invalid body"}), 400
+    tid_in = str(data.get("id") or "").strip() or None
+    name = str(data.get("name") or "Untitled").strip()[:120] or "Untitled"
+    variables_in = data.get("variables")
+    if not isinstance(variables_in, dict):
+        return jsonify({"ok": False, "error": "Invalid variables"}), 400
+    norm = _normalize_theme_variables_dict(variables_in)
+    full = complete_theme_variables(norm)
+    tid = upsert_theme_in_file(tid_in, name, full, activate=True)
+    return jsonify({"ok": True, "id": tid})
+
+
+@app.route("/theme-editor", methods=["GET", "POST"])
+def theme_editor():
+    if request.method == "POST":
+        merged = _variables_from_post_form(request)
+        full = complete_theme_variables(merged)
+        library_id = request.form.get("library_id", "").strip()
+        theme_name = request.form.get("theme_name", "").strip()[:120] or "Untitled"
+        upsert_theme_in_file(library_id or None, theme_name, full, activate=True)
+        return redirect(url_for("index"))
+    requested_library = request.args.get("library_id", "").strip()
+    base_q = request.args.get("base", "").strip()
+    prefer_new = request.args.get("new", "").strip().lower() in ("1", "true", "yes")
+    if not requested_library and not base_q:
+        base_q = THEME_FALLBACK_ID
+        prefer_new = True
+    values, lib_from_state, theme_display_name = theme_editor_page_state(
+        requested_library or None,
+        prefer_new,
+        base_q or None,
+    )
+    editing_is_new_theme = not (
+        requested_library and lib_from_state and lib_from_state == requested_library
+    )
+    editing_library_id = lib_from_state or secrets.token_hex(6)
+    built_in = set(THEME_PRESETS.keys())
+    preset_labels: list[tuple[str, str]] = [
+        (pid, pid.replace("-", " ").title()) for pid in THEME_PRESETS
+    ]
+    for t in load_themes_data().get("themes", []):
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get("id") or "").strip()
+        if not tid or tid in built_in:
+            continue
+        n = str(t.get("name") or tid).strip()[:80] or tid
+        preset_labels.append((tid, n))
+    rows_by_group: dict[str, list[tuple[str, str]]] = {gid: [] for gid, _ in THEME_EDITOR_GROUPS}
+    for key, label, gid in THEME_EDITOR_ROWS:
+        rows_by_group[gid].append((key, label))
+    base_preset_for_js: dict[str, str] = {k: values.get(k, "") for k in THEME_EDITOR_KEYS}
+    fill_for_js: dict[str, dict] = {k: complete_theme_variables(dict(v)) for k, v in THEME_PRESETS.items()}
+    for t in load_themes_data().get("themes", []):
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get("id") or "").strip()
+        if not tid:
+            continue
+        v0 = t.get("variables")
+        fill_for_js[tid] = complete_theme_variables(v0 if isinstance(v0, dict) else {})
+    editing_can_delete = (
+        not editing_is_new_theme
+        and bool(editing_library_id)
+        and str(editing_library_id) not in THEME_PRESETS
+    )
+    return render_template(
+        "theme_editor.html",
+        theme_groups=THEME_EDITOR_GROUPS,
+        theme_rows_by_group=rows_by_group,
+        theme_values=values,
+        theme_fill_for_js=fill_for_js,
+        theme_preset_list=preset_labels,
+        editing_base_preset_json=base_preset_for_js,
+        editing_data_theme=editing_library_id,
+        editing_library_id=editing_library_id,
+        theme_display_name=theme_display_name,
+        editing_is_new_theme=editing_is_new_theme,
+        editing_can_delete=editing_can_delete,
+    )
+
+
+@app.route("/theme-editor/delete", methods=["POST"])
+def theme_editor_delete():
+    tid = (request.form.get("library_id") or "").strip()
+    err = delete_theme_in_file(tid)
+    if err is not None:
+        if err == "builtin":
+            flash("Built-in themes cannot be deleted.", "error")
+        elif err in ("last_theme",):
+            flash("Cannot delete the only remaining theme.", "error")
+        elif err == "not_found":
+            flash("Theme not found.", "error")
+        else:
+            flash("Could not delete theme.", "error")
+    return redirect(url_for("index"))
 
 
 def _migrate_legacy_katie_schema(conn: sqlite3.Connection) -> None:
@@ -2608,8 +2817,6 @@ def update_settings():
         if not isinstance(v, type(default)):
             return jsonify({"ok": False, "error": f"Invalid type for '{key}'"}), 400
         settings[key] = v
-    if settings["theme"] not in VALID_THEMES:
-        settings["theme"] = "pearl"
     save_settings(settings)
     return jsonify({"ok": True})
 
