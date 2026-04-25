@@ -416,10 +416,32 @@ def _normalize_themes_file_payload(raw: object) -> dict:
 _THEMES_MIGRATED = False
 
 
-def _migrate_legacy_theme_settings_from_settings_json() -> None:
+def _settings_host_module() -> Any | None:
+    """app.py as loaded by the interpreter (e.g. ``kb_tunes.app`` under WSGI, not always ``app``)."""
     import importlib
+    import sys
 
-    app_mod: Any = importlib.import_module("app")
+    try:
+        m = importlib.import_module("app")
+        if hasattr(m, "SETTINGS_DEFAULTS") and hasattr(m, "SETTINGS_PATH"):
+            return m
+    except ModuleNotFoundError:
+        pass
+    for mod in sys.modules.values():
+        if mod is None:
+            continue
+        if not hasattr(mod, "SETTINGS_DEFAULTS") or not hasattr(mod, "SETTINGS_PATH"):
+            continue
+        if getattr(mod, "app", None) is None:
+            continue
+        return mod
+    return None
+
+
+def _migrate_legacy_theme_settings_from_settings_json() -> None:
+    app_mod = _settings_host_module()
+    if app_mod is None:
+        return
     defaults = app_mod.SETTINGS_DEFAULTS
     p = str(app_mod.SETTINGS_PATH)
     try:
