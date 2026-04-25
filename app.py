@@ -2,6 +2,7 @@ import calendar
 import hashlib
 import json
 import math
+import sys
 import mimetypes
 import random
 import re
@@ -39,6 +40,9 @@ def _no_cache_html_responses(response):
     return response
 
 _APP_ROOT = Path(__file__).resolve().parent
+# WSGI often loads this module as e.g. kb_tunes.app; ensure sibling modules resolve.
+if str(_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APP_ROOT))
 LESSON_TUNES_DIR = _APP_ROOT / "lesson_tunes"
 _LEGACY_DB = _APP_ROOT / "songs.db"
 DB_PATH = str(_APP_ROOT / "tunes.db")
