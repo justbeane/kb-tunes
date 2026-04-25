@@ -132,7 +132,7 @@ a:hover { color: var(--accent-hover); }
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--text-muted);
+  color: var(--sidebar-text);
   padding: 0 0.6rem;
   margin-bottom: 0.4rem;
   font-weight: 600;
@@ -142,22 +142,22 @@ a:hover { color: var(--accent-hover); }
   display: block;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
-  color: var(--text-muted);
+  color: var(--sidebar-text);
   font-size: 0.9rem;
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   text-decoration: none;
 }
 
 .sidebar-item:hover {
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--sidebar-selected-bg);
+  color: var(--sidebar-selected-color);
 }
 
 .sidebar-item.active {
-  background: var(--surface-2);
-  color: var(--accent-light);
-  font-weight: 600;
+  background: var(--sidebar-selected-bg);
+  color: var(--sidebar-selected-color);
+  font-weight: 700;
 }
 
 .sidebar-fold {
@@ -169,8 +169,8 @@ a:hover { color: var(--accent-hover); }
   cursor: pointer;
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--sidebar-text);
   border-radius: 6px;
   user-select: none;
   transition: background 0.15s, color 0.15s;
@@ -195,8 +195,8 @@ a:hover { color: var(--accent-hover); }
   opacity: 0.75;
 }
 .sidebar-fold > summary.sidebar-fold-summary:hover {
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--sidebar-selected-bg);
+  color: var(--sidebar-selected-color);
 }
 .sidebar-fold-links {
   padding: 0.15rem 0 0.35rem 0.35rem;
@@ -489,7 +489,7 @@ a:hover { color: var(--accent-hover); }
 
 .sidebar-footer {
   padding: 0.75rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sidebar-text);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -501,8 +501,8 @@ a:hover { color: var(--accent-hover); }
   height: 34px;
   border-radius: 8px;
   background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  border: 1px solid var(--sidebar-text);
+  color: var(--sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -530,8 +530,8 @@ a:hover { color: var(--accent-hover); }
   height: 34px;
   border-radius: 8px;
   background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  border: 1px solid var(--sidebar-text);
+  color: var(--sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3743,8 +3743,8 @@ footer {
   height: 34px;
   border-radius: 8px;
   background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  border: 1px solid var(--sidebar-text);
+  color: var(--sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -5092,22 +5092,26 @@ html[data-mp-mark-played-today="on"] .tune-card.played-today {
   background: var(--played-today-bg);
   border-color: color-mix(in srgb, var(--played-today-bg) 60%, var(--border));
 }
+html[data-mp-mark-played-today="on"] .tune-card.played-today .card-title {
+  color: var(--card-text-played, var(--text));
+}
 html[data-mp-mark-played-today="on"] .tune-card.played-today:hover {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--played-today-bg) 80%, var(--surface-2));
 }
 html[data-mp-mark-played-today="on"] .tune-card.played-today .btn-practiced {
-  background: color-mix(in srgb, var(--played-today-bg) 82%, var(--text) 18%);
-  border-color: color-mix(in srgb, var(--played-today-bg) 50%, var(--border));
-  color: var(--text);
+  background: var(--practiced-bg-played);
+  border-color: var(--practiced-border-played);
+  color: var(--practiced-color-played, var(--card-text-played, var(--text)));
 }
 html[data-mp-mark-played-today="on"] .tune-card.played-today .btn-practiced:hover {
-  background: color-mix(in srgb, var(--played-today-bg) 68%, var(--text) 24%);
-  color: var(--text);
+  background: var(--practiced-bg-played-hover);
+  color: var(--practiced-color-played-hover, var(--card-text-played, var(--text)));
 }
 html[data-mp-mark-played-today="on"] .tune-card.played-today .btn-practiced.practiced-flash {
-  background: color-mix(in srgb, var(--played-today-bg) 58%, var(--text) 30%);
-  color: var(--text);
+  background: var(--practiced-border-played);
+  color: var(--practiced-color-played, var(--card-text-played, var(--text)));
+  border-color: var(--practiced-border-played);
   transition: none;
 }
 html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today,
