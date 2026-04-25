@@ -558,6 +558,36 @@ def _no_practice_rows_on_central_day(conn: sqlite3.Connection, ymd: str) -> bool
     return n == 0
 
 
+def _tune_practiced_on_central_day(
+    conn: sqlite3.Connection, tune_id: int, ymd: str
+) -> bool:
+    """ymd is YYYY-MM-DD (Central). True if this tune has a practice row on that date."""
+    row = conn.execute(
+        """
+        SELECT 1 FROM practice_history
+        WHERE tune_id = ? AND substr(date_played, 1, 10) = ?
+        LIMIT 1
+        """,
+        (tune_id, ymd),
+    ).fetchone()
+    return row is not None
+
+
+def _set_practiced_on_central_day(
+    conn: sqlite3.Connection, set_id: int, ymd: str
+) -> bool:
+    """ymd is YYYY-MM-DD (Central). True if this set has a set_practice row on that date."""
+    row = conn.execute(
+        """
+        SELECT 1 FROM set_practice
+        WHERE set_id = ? AND substr(date_practiced, 1, 10) = ?
+        LIMIT 1
+        """,
+        (set_id, ymd),
+    ).fetchone()
+    return row is not None
+
+
 def _refresh_log_drop_legacy_columns(conn) -> None:
     """Remove pre–start_at/end_at columns if present."""
     legacy = (
@@ -1517,6 +1547,8 @@ def practiced_tune(tune_id):
         )
         row = conn.execute("SELECT name FROM tunes WHERE id = ?", (tune_id,)).fetchone()
         if row:
+            if _tune_practiced_on_central_day(conn, tune_id, ts[:10]):
+                return jsonify({"ok": False, "error": "Already practiced today"}), 200
             if _no_practice_rows_on_central_day(conn, ts[:10]):
                 _backup_tunes_db(conn)
             conn.execute(
@@ -1539,6 +1571,8 @@ def record_set_practice(set_id):
         set_row = conn.execute("SELECT id FROM sets WHERE id = ?", (set_id,)).fetchone()
         if not set_row:
             return jsonify({"ok": False, "error": "Set not found"}), 404
+        if _set_practiced_on_central_day(conn, set_id, ts[:10]):
+            return jsonify({"ok": False, "error": "Already recorded for today"}), 200
         if _no_practice_rows_on_central_day(conn, ts[:10]):
             _backup_tunes_db(conn)
         conn.execute(
@@ -1550,10 +1584,12 @@ def record_set_practice(set_id):
                 "SELECT tune_id FROM set_tunes WHERE set_id = ?",
                 (set_id,),
             ):
-                conn.execute(
-                    "INSERT INTO practice_history (tune_id, date_played) VALUES (?, ?)",
-                    (r["tune_id"], ts),
-                )
+                tid = int(r["tune_id"])
+                if not _tune_practiced_on_central_day(conn, tid, ts[:10]):
+                    conn.execute(
+                        "INSERT INTO practice_history (tune_id, date_played) VALUES (?, ?)",
+                        (tid, ts),
+                    )
         conn.commit()
     days_since = (central_date_today() - date.fromisoformat(ts[:10])).days
     return jsonify({"ok": True, "date": ts, "days_since_last": days_since})
