@@ -5474,10 +5474,10 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
   }
   #tuneTable.table-layout-modern thead th:nth-child(2),
   #tuneTable.table-layout-modern tbody td:nth-child(2) {
-    flex: 0 0 calc(22rem * 0.67);
-    width: calc(22rem * 0.67);
-    min-width: calc(22rem * 0.67);
-    max-width: none;
+    flex: 0 0 12rem;
+    width: 12rem;
+    max-width: 12rem;
+    min-width: 0;
   }
   #tuneTable.table-layout-modern thead th:nth-child(3),
   #tuneTable.table-layout-modern tbody td:nth-child(3) {
