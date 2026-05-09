@@ -2719,6 +2719,8 @@ def table_view():
 
     order = """
         ORDER BY
+            CASE WHEN s.tune_num IS NULL THEN 1 ELSE 0 END,
+            s.tune_num ASC,
             CASE
                 WHEN LOWER(s.name) LIKE 'the %' THEN LOWER(SUBSTR(s.name, 5))
                 WHEN LOWER(s.name) LIKE 'a %'   THEN LOWER(SUBSTR(s.name, 3))
@@ -2767,6 +2769,14 @@ def table_view():
                     return (0, "")
                 return (1, str(lp))
 
+            def _table_tune_num_sort_key(row: sqlite3.Row) -> tuple:
+                n = row["tune_num"]
+                if n is None:
+                    return (1, 0)
+                return (0, int(n))
+
+            # Stable secondary: ascending No. within the same last-played order.
+            tunes.sort(key=_table_tune_num_sort_key)
             if practice_group_played_order == "asc":
                 tunes.sort(key=_pg_last_played_sort_key, reverse=True)
             else:

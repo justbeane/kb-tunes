@@ -5447,16 +5447,16 @@ html[data-mp-mark-played-today="on"] .tune-table tbody tr.played-today:hover {
   }
   #tuneTable.table-layout-modern thead th.col-tune-practice,
   #tuneTable.table-layout-modern tbody td.col-tune-practice {
-    order: -1;
+    order: 1;
   }
   #tuneTable.table-layout-modern thead th.col-tune-practice {
-    text-align: left;
-    justify-content: flex-start;
+    text-align: right;
+    justify-content: flex-end;
   }
   #tuneTable.table-layout-modern .sets-col-practice-inner {
-    justify-content: flex-start;
-    padding-left: 0.35rem;
-    padding-right: 0.65rem;
+    justify-content: flex-end;
+    padding-left: 0.65rem;
+    padding-right: 0.35rem;
   }
   #tuneTable.table-layout-modern tbody td.cell-readonly {
     justify-content: flex-end;
