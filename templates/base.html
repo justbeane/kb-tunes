@@ -876,9 +876,19 @@
           btn.classList.add('practiced-flash');
           setTimeout(() => btn.classList.remove('practiced-flash'), 900);
           if (data.date) {
+            const lastShown = mpFormatSetLastDisplayed(data.date);
+            const panelDays = document.getElementById('setPanelDaysSinceNum');
+            if (panelDays && typeof data.days_since_last === 'number') {
+              panelDays.textContent = String(data.days_since_last);
+              const wrap = panelDays.closest('.set-modal-days-since');
+              if (wrap) {
+                wrap.classList.remove('set-modal-days-since--never');
+                wrap.setAttribute('aria-label', `${data.days_since_last} days since last played`);
+                wrap.setAttribute('title', `Last played: ${lastShown}`);
+              }
+            }
             const row = btn.closest('#setsTable tbody tr');
             const lastEl = row?.querySelector('.sets-col-last-practiced');
-            const lastShown = mpFormatSetLastDisplayed(data.date);
             if (lastEl) lastEl.textContent = lastShown;
             if (row && typeof data.days_since_last === 'number') {
               const daysTd = row.querySelector('td[data-sets-col="4"]');
@@ -1748,6 +1758,15 @@
 
       mpClearTunePickerOutsideListener();
 
+      tuneModalBody.querySelectorAll('.tune-panel-nested-open[data-panel-url]').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const url = a.getAttribute('data-panel-url');
+          if (url && window.mpOpenTuneModal) window.mpOpenTuneModal(url);
+        });
+      });
+
       const form = tuneModalBody.querySelector('#setEditForm');
       if (form) {
         form.addEventListener('submit', e => e.preventDefault());
@@ -1768,10 +1787,6 @@
           form.querySelectorAll('#setTypeMultiselect .mp-key-ms-hiddens input[name="type"]').forEach((inp) => {
             const v = (inp.value || '').trim();
             if (v) fd.append('type', v);
-          });
-          form.querySelectorAll('.mp-key-ms-hiddens input[name="key"]').forEach((inp) => {
-            const v = (inp.value || '').trim();
-            if (v) fd.append('key', v);
           });
           fetch(form.action, {
             method: 'POST',
@@ -1808,14 +1823,6 @@
         if (setTypeRoot) {
           setTypeRoot.addEventListener('mp-key-ms-change', () => {
             saveSetFields(setTypeInp, null);
-          });
-        }
-
-        const setKeyRoot = form.querySelector('#setKeyMultiselect');
-        const setKeyInp = setKeyRoot && setKeyRoot.querySelector('.mp-key-ms-input');
-        if (setKeyRoot) {
-          setKeyRoot.addEventListener('mp-key-ms-change', () => {
-            saveSetFields(setKeyInp, null);
           });
         }
       }
@@ -1986,6 +1993,9 @@
         if (!tunePicker || !addLabel) return;
         tuneModalBody.removeEventListener('scroll', tunePickerOnReposition, true);
         window.removeEventListener('resize', tunePickerOnReposition);
+        tuneModalBody.querySelectorAll('.set-tune-name-row').forEach(r => {
+          r.hidden = false;
+        });
         tuneModalBody.querySelectorAll('.set-tune-name-display').forEach(d => {
           d.hidden = false;
         });
@@ -2031,12 +2041,19 @@
           slotReplaceUrl = slotCtx.replaceUrl;
           slotTuneId = slotCtx.slotTuneId;
           const cell = targetSlot.closest('.set-tune-name-cell');
-          const disp = cell && cell.querySelector('.set-tune-name-display');
-          if (disp) disp.hidden = true;
+          const nameRow = cell && cell.querySelector('.set-tune-name-row');
+          if (nameRow) nameRow.hidden = true;
+          else {
+            const disp = cell && cell.querySelector('.set-tune-name-display');
+            if (disp) disp.hidden = true;
+          }
           addLabel.hidden = false;
         } else {
           slotReplaceUrl = null;
           slotTuneId = null;
+          tuneModalBody.querySelectorAll('.set-tune-name-row').forEach(r => {
+            r.hidden = false;
+          });
           tuneModalBody.querySelectorAll('.set-tune-name-display').forEach(d => {
             d.hidden = false;
           });
@@ -2061,12 +2078,13 @@
 
       function openSetTunePickerFromNameCell(nameCell) {
         if (!nameCell) return;
-        const span = nameCell.querySelector('.set-tune-name-display');
+        const nameLink = nameCell.querySelector('.set-tune-name-display');
+        const replaceBtn = nameCell.querySelector('.set-tune-replace-btn');
         const slot = nameCell.querySelector('.set-tune-picker-slot');
         const tr = nameCell.closest('tr[data-tune-id]');
-        if (!span || !slot || !tr) return;
-        const name = span.textContent.trim();
-        const replaceUrl = span.dataset.replaceUrl;
+        if (!nameLink || !replaceBtn || !slot || !tr) return;
+        const name = nameLink.textContent.trim();
+        const replaceUrl = replaceBtn.dataset.replaceUrl;
         const tid = parseInt(tr.dataset.tuneId, 10);
         if (!replaceUrl || !Number.isFinite(tid)) return;
         const wasHidden = tunePicker.hidden;
@@ -2074,18 +2092,12 @@
         if (wasHidden) nameCell.scrollIntoView({ block: 'nearest' });
       }
 
-      tuneModalBody.querySelectorAll('.set-tune-name-opener').forEach(span => {
-        const nameCell = span.closest('.set-tune-name-cell');
+      tuneModalBody.querySelectorAll('.set-tune-replace-btn').forEach(btn => {
+        const nameCell = btn.closest('.set-tune-name-cell');
         if (!nameCell) return;
-        span.addEventListener('click', e => {
-          if (!span.closest('tr[data-tune-id]')) return;
-          e.preventDefault();
-          e.stopPropagation();
-          openSetTunePickerFromNameCell(nameCell);
-        });
-        span.addEventListener('keydown', e => {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          if (!span.closest('tr[data-tune-id]')) return;
+        btn.addEventListener('mousedown', e => e.stopPropagation());
+        btn.addEventListener('click', e => {
+          if (!btn.closest('tr[data-tune-id]')) return;
           e.preventDefault();
           e.stopPropagation();
           openSetTunePickerFromNameCell(nameCell);
@@ -2111,8 +2123,11 @@
 
       tunePickerInput?.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-          e.preventDefault();
-          collapseInlineTunePicker();
+          if (!tunePicker.hidden) {
+            e.preventDefault();
+            e.stopPropagation();
+            collapseInlineTunePicker();
+          }
           return;
         }
         if (e.key === 'ArrowDown') {

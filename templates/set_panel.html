@@ -1,5 +1,17 @@
 {# Fragment for View Set / Add New Set modal — no {% extends %} #}
-<h2 class="set-modal-title" id="setPanelTitle">{{ panel_title }}</h2>
+<div class="set-modal-heading-row">
+  <h2 class="set-modal-title" id="setPanelTitle">
+    <span class="set-modal-title-text">{{ panel_title }}</span>
+  </h2>
+  <div class="set-modal-days-since{% if not set_last_practiced %} set-modal-days-since--never{% endif %}"
+       title="{% if set_last_practiced %}Last played: {{ set_last_practiced|practice_datetime_no_seconds }}{% else %}Never practiced{% endif %}"
+       aria-label="{% if set_days_since_last is not none %}{{ set_days_since_last }} days since last played{% else %}Never practiced{% endif %}">
+    <svg class="sets-days-since-hourglass" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+    </svg>
+    <span class="set-modal-days-since-num" id="setPanelDaysSinceNum">{% if set_days_since_last is not none %}{{ set_days_since_last }}{% else %}—{% endif %}</span>
+  </div>
+</div>
 <form method="post" class="set-panel-form" id="setEditForm" action="{{ url_for('edit_set', set_id=set_record.id) }}"
       data-set-id="{{ set_record.id }}"
       data-set-panel-url="{{ panel_url }}"
@@ -33,27 +45,6 @@
       <script type="application/json" class="mp-key-ms-all">{{ set_type_suggestions|list|tojson }}</script>
     </div>
   </div>
-  <div class="form-group set-panel-form-group">
-    <span class="set-panel-section-label" id="set_edit_key_label">Key</span>
-    <div class="mp-key-ms" id="setKeyMultiselect" aria-labelledby="set_edit_key_label">
-      <div class="practice-groups-pills" role="list" aria-label="Selected keys"></div>
-      <div class="mp-key-ms-combo">
-        <input type="text" id="set_edit_key_pick" class="mp-suggest-input mp-key-ms-input"
-               placeholder="Add key…" autocomplete="off"
-               role="combobox" aria-autocomplete="list" aria-expanded="false"
-               aria-controls="set_edit_key_ms_menu" />
-        <div class="mp-suggest-menu-shell" hidden>
-          <ul class="mp-suggest-menu mp-key-ms-menu" id="set_edit_key_ms_menu" role="listbox"></ul>
-        </div>
-      </div>
-      <div class="mp-key-ms-hiddens">
-        {% for k in set_record.key|keys_selected %}
-        <input type="hidden" name="key" value="{{ k|e }}" />
-        {% endfor %}
-      </div>
-      <script type="application/json" class="mp-key-ms-all">{{ set_key_suggestions|list|tojson }}</script>
-    </div>
-  </div>
 </form>
 
 <div class="set-panel-tunes">
@@ -65,7 +56,6 @@
           <th class="set-tune-col-num" scope="col">#</th>
           <th scope="col">Name</th>
           <th scope="col">Type</th>
-          <th scope="col">Key</th>
           <th class="set-tune-col-remove" scope="col"><span class="table-sr-only">Remove from set</span></th>
         </tr>
       </thead>
@@ -74,13 +64,24 @@
         <tr data-tune-id="{{ tune.id }}" class="set-tune-row" draggable="true">
           <td class="set-tune-num">{{ loop.index }}</td>
           <td class="set-tune-name set-tune-name-cell">
-            <span class="set-tune-name-display set-tune-name-opener" role="button" tabindex="0"
-                  title="Change this tune — search here"
-                  data-replace-url="{{ url_for('replace_tune_in_set', set_id=set_record.id, tune_id=tune.id) }}">{{ tune.name }}</span>
+            <div class="set-tune-name-row">
+              <a href="{{ url_for('tune_panel', tune_id=tune.id) }}"
+                 class="tune-link tune-panel-nested-open set-tune-name-display"
+                 data-panel-url="{{ url_for('tune_panel', tune_id=tune.id) }}">{{ tune.name }}</a>
+              <button type="button" class="set-tune-replace-btn"
+                      title="Change tune in set"
+                      aria-label="Choose a different tune for this row"
+                      data-replace-url="{{ url_for('replace_tune_in_set', set_id=set_record.id, tune_id=tune.id) }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+                </svg>
+              </button>
+            </div>
             <div class="set-tune-picker-slot"></div>
           </td>
           <td class="set-tune-type">{% if tune.tune_type %}<span class="badge badge-type">{{ tune.tune_type }}</span>{% else %}—{% endif %}</td>
-          <td class="set-tune-key">{% if tune.key|keys_selected %}{% for kk in tune.key|keys_selected %}<span class="badge badge-key">{{ kk }}</span>{% if not loop.last %} {% endif %}{% endfor %}{% else %}—{% endif %}</td>
           <td class="set-tune-col-remove">
             <button type="button" class="btn-set-tune-remove"
                     data-remove-url="{{ url_for('remove_tune_from_set', set_id=set_record.id, tune_id=tune.id) }}"
@@ -112,7 +113,6 @@
             <script type="application/json" id="setTunePickerJson">{{ tune_picker_bundle | tojson }}</script>
           </td>
           <td class="set-tune-type">—</td>
-          <td class="set-tune-key">—</td>
           <td class="set-tune-col-remove set-tune-col-remove--empty" aria-hidden="true"></td>
         </tr>
       </tbody>

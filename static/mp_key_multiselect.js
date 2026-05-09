@@ -314,8 +314,11 @@
         return;
       }
       if (e.key === 'Escape') {
-        e.preventDefault();
-        hideMenu();
+        if (!menuFace.hidden) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideMenu();
+        }
       }
     });
   }

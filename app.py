@@ -111,11 +111,9 @@ def _central_now_minute() -> datetime:
     )
 
 
-def _julianday_anchor_sql() -> str:
-    """Central 'now' as YYYY-MM-DD HH:MM:SS for SQLite julianday(?)."""
-    return datetime.now(DB_TIMEZONE).replace(microsecond=0).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+def _days_since_calendar_anchor_sql() -> str:
+    """Central calendar date as YYYY-MM-DD for julianday(?) in days_since_last."""
+    return central_date_today().isoformat()
 
 
 def normalize_practice_datetime(value: str) -> str | None:
@@ -1324,7 +1322,7 @@ TUNES_WITH_STATS = """
            (SELECT MIN(p.date_played) FROM practice_history p WHERE p.tune_id = s.id) AS first_practiced,
            (SELECT MAX(p.date_played) FROM practice_history p WHERE p.tune_id = s.id) AS last_practiced,
            (SELECT CASE WHEN MAX(p.date_played) IS NULL THEN NULL
-                        ELSE CAST(ROUND(julianday(?) - julianday(MAX(p.date_played))) AS INTEGER)
+                        ELSE CAST(ROUND(julianday(?) - julianday(substr(MAX(p.date_played), 1, 10))) AS INTEGER)
                    END
               FROM practice_history p WHERE p.tune_id = s.id) AS days_since_last
     FROM tunes s
@@ -1446,7 +1444,7 @@ def index():
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         sql = TUNES_WITH_STATS + where + f" ORDER BY {order_sql}"
 
-        tunes = conn.execute(sql, [_julianday_anchor_sql()] + params).fetchall()
+        tunes = conn.execute(sql, [_days_since_calendar_anchor_sql()] + params).fetchall()
 
     return render_template(
         "index.html",
@@ -2672,7 +2670,7 @@ def times_played():
                    (SELECT MAX(ph.date_played) FROM practice_history ph
                     WHERE ph.tune_id = s.id) AS last_practiced,
                    (SELECT CASE WHEN MAX(ph.date_played) IS NULL THEN NULL
-                                ELSE CAST(ROUND(julianday('{_julianday_anchor_sql()}') - julianday(MAX(ph.date_played))) AS INTEGER)
+                                ELSE CAST(ROUND(julianday(?) - julianday(substr(MAX(ph.date_played), 1, 10))) AS INTEGER)
                            END
                       FROM practice_history ph WHERE ph.tune_id = s.id) AS days_since_last
             FROM tunes s
@@ -2683,7 +2681,10 @@ def times_played():
             GROUP BY s.id
             ORDER BY {order}
         """
-        tunes = conn.execute(sql, period_params + params).fetchall()
+        tunes = conn.execute(
+            sql,
+            [_days_since_calendar_anchor_sql()] + period_params + params,
+        ).fetchall()
 
     return render_template(
         "times_played.html",
@@ -2739,7 +2740,7 @@ def table_view():
         practice_group_label = None
         if filter_pg:
             all_tunes = conn.execute(
-                TUNES_WITH_STATS + order, (_julianday_anchor_sql(),)
+                TUNES_WITH_STATS + order, (_days_since_calendar_anchor_sql(),)
             ).fetchall()
             in_group = [
                 t
@@ -2787,7 +2788,7 @@ def table_view():
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             tunes = conn.execute(
                 TUNES_WITH_STATS + where + order,
-                [_julianday_anchor_sql()] + params,
+                [_days_since_calendar_anchor_sql()] + params,
             ).fetchall()
             types_for_filter = types_for_filter_all
 
@@ -2950,9 +2951,28 @@ def set_panel(set_id):
         row = conn.execute("SELECT * FROM sets WHERE id = ?", (set_id,)).fetchone()
         if not row:
             return "Not found", 404
+        set_last_practiced = None
+        set_days_since_last = None
+        if not is_new:
+            lp_row = conn.execute(
+                """
+                SELECT MAX(date_practiced) AS last_practiced
+                FROM set_practice WHERE set_id = ?
+                """,
+                (set_id,),
+            ).fetchone()
+            set_last_practiced = lp_row["last_practiced"] if lp_row else None
+            if set_last_practiced:
+                try:
+                    set_days_since_last = (
+                        central_date_today()
+                        - date.fromisoformat(str(set_last_practiced)[:10])
+                    ).days
+                except ValueError:
+                    set_days_since_last = None
         set_tunes = conn.execute(
             """
-            SELECT s.id, s.name, s.tune_type, s.key
+            SELECT s.id, s.name, s.tune_type
             FROM tunes s
             JOIN set_tunes ss ON ss.tune_id = s.id
             WHERE ss.set_id = ?
@@ -2979,9 +2999,6 @@ def set_panel(set_id):
     set_type_suggestions = suggestions_merge_keys(
         distinct_set_types_union(), row["type"] if row["type"] is not None else ""
     )
-    set_key_suggestions = suggestions_merge_keys(
-        distinct_keys(), row["key"] if row["key"] is not None else ""
-    )
     tune_picker_add_options = [
         {"id": int(r["id"]), "name": r["name"]} for r in tunes_available_for_set
     ]
@@ -2999,7 +3016,6 @@ def set_panel(set_id):
         "set_panel.html",
         set_record=row,
         set_type_suggestions=set_type_suggestions,
-        set_key_suggestions=set_key_suggestions,
         set_tunes=set_tunes,
         tunes_available_for_set=tunes_available_for_set,
         tune_picker_add_options=tune_picker_add_options,
@@ -3007,6 +3023,8 @@ def set_panel(set_id):
         panel_title=panel_title,
         is_new=is_new,
         panel_url=panel_url,
+        set_last_practiced=set_last_practiced,
+        set_days_since_last=set_days_since_last,
     )
 
 
@@ -3210,15 +3228,19 @@ def edit_set(set_id):
     is_modal = request.form.get("modal") == "1"
     description = request.form.get("description", "").strip()
     type_stored = _set_types_from_request_form()
-    key_stored = _keys_from_request_form()
+    key_submitted = request.form.getlist("key")
     with get_db() as conn:
-        row = conn.execute("SELECT type FROM sets WHERE id = ?", (set_id,)).fetchone()
+        row = conn.execute("SELECT type, key FROM sets WHERE id = ?", (set_id,)).fetchone()
         if not row:
             if is_modal:
                 return jsonify({"ok": False, "error": "Set not found."}), 404
             flash("Set not found.", "error")
             return redirect(url_for("sets_view"))
-    with get_db() as conn:
+        key_stored = (
+            _keys_from_request_form()
+            if key_submitted
+            else (row["key"] if row["key"] is not None else "")
+        )
         conn.execute(
             "UPDATE sets SET description = ?, type = ?, key = ? WHERE id = ?",
             (description, type_stored, key_stored, set_id),
